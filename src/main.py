@@ -1,6 +1,8 @@
-def main():
-    print("Hello from vino-svoe!")
+from fastapi import FastAPI
+import uvicorn
+from config import settings
 
+app = FastAPI()
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host=settings.host, port=settings.port)
