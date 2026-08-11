@@ -6,7 +6,6 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 def download_all_pages(max_pages=200):
-    """Скачивает изображения со всех страниц каталога"""
     
     folder = "wine_images_all"
     if not os.path.exists(folder):
