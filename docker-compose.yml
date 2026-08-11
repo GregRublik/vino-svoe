@@ -1,0 +1,80 @@
+# docker-compose.yml
+# Запуск API-сервиса и вспомогательных контейнеров.
+
+services:
+  api:
+    image: vs-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_HOST=0.0.0.0
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_PORT=5432
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      rabbitmq:
+#        condition: service_started
+    restart: "no"
+
+#  postgres:
+#    image: postgres:latest
+#    environment:
+#      POSTGRES_USER: ${DB_USER}
+#      POSTGRES_PASSWORD: ${DB_PASSWORD}
+#      POSTGRES_DB: ${DB_NAME}
+#      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+#      POSTGRES_PORT: ${DB_PORT}
+#    ports:
+#      - ${DB_PORT}:5432
+#    volumes:
+#      - postgres-data:/var/lib/postgresql/18/docker
+#    env_file:
+#      - .env
+#    healthcheck:
+#      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
+#      interval: 2s
+#      timeout: 2s
+#      retries: 10
+
+#  rabbitmq:
+#    image: rabbitmq:4-management
+#    hostname: rabbitmq
+#    environment:
+#      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+#      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+#      RABBITMQ_DEFAULT_VHOST: /
+#    volumes:
+#      - rabbitmq-data:/var/lib/rabbitmq
+#    ports:
+#      - "15672:15672"  # RabbitMQ Management UI
+#      - "${RABBITMQ_PORT}:5672"    # AMQP port
+#    healthcheck:
+#      test: ["CMD", "rabbitmqctl", "status"]
+#      interval: 2s
+#      timeout: 2s
+#      retries: 10
+##    networks:
+##      - rag-microservice
+#    env_file:
+#      - .env
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"   # HTTP API
+      - "6334:6334"   # gRPC
+    volumes:
+      - vs-qdrant-data:/qdrant/storage
+    restart: "no"
+
+volumes:
+#  postgres-data:
+#  rabbitmq-data:
+  vs-qdrant-data:
