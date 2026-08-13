@@ -1,0 +1,17 @@
+[project]
+name = "vino-svoe"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bs4>=0.0.2",
+    "fastapi>=0.141.1",
+    "numpy>=2.5.2",
+    "pydantic-settings>=2.15.0",
+    "requests>=2.34.2",
+    "torch>=2.13.0",
+    "torchvision>=0.28.0",
+    "tqdm>=4.70.0",
+    "uvicorn>=0.52.1",
+]
