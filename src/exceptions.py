@@ -1,0 +1,4 @@
+
+
+class QdrantCollectionNotFoundException(Exception):
+    pass
