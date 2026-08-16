@@ -2,6 +2,7 @@ import requests
 import os
 import time
 import re
+import json
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -57,7 +58,13 @@ def download_all_pages(max_pages=200):
                     continue
                 
                 processed_urls.add(img_url)
-                
+
+                # Ищем ссылку на страницу вина (родительская <a href="/wines/...">)
+                page_url = ''
+                wine_link = img.find_parent('a', href=re.compile(r'^/wines/'))
+                if wine_link and wine_link.get('href'):
+                    page_url = urljoin("https://vino-svoe.ru", wine_link.get('href'))
+
                 # Получаем название
                 name = img.get('alt') or img.get('title') or ''
                 if name:
@@ -81,6 +88,7 @@ def download_all_pages(max_pages=200):
                 
                 all_images.append({
                     'url': img_url,
+                    'page_url': page_url,
                     'name': name,
                     'page': page
                 })
@@ -166,6 +174,17 @@ def download_all_pages(max_pages=200):
         
         print("-" * 50)
         print(f"📊 ИТОГО: {success} скачано, {skipped} пропущено, {errors} ошибок")
+
+        # Сохраняем карту "имя файла -> ссылка на страницу вина"
+        # (если страницу найти не удалось — подставляем прямую ссылку на изображение)
+        links_file = os.path.join(folder, "wine_links.json")
+        links_map = {
+            f"{info['name']}.webp": info.get('page_url') or info['url']
+            for info in all_images
+        }
+        with open(links_file, "w", encoding="utf-8") as f:
+            json.dump(links_map, f, ensure_ascii=False, indent=2)
+        print(f"🔗 Сохранены ссылки на изображения: {os.path.abspath(links_file)}")
     else:
         print("❌ Изображения не найдены")
     

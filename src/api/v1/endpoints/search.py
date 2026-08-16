@@ -1,13 +1,14 @@
 from fastapi import APIRouter, UploadFile, Depends
 
-from src.services.retrieval import RetrievalService
+from services.retrieval import RetrievalService
+from schemas.search import WineSearchResponse
 
 from depends import get_retrieval_service
 
 router = APIRouter()
 
 
-@router.get("/search")
+@router.post("/search", response_model=WineSearchResponse)
 async def search(
     photo: UploadFile,
     retrieval_service: RetrievalService = Depends(get_retrieval_service),

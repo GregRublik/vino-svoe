@@ -31,3 +31,13 @@ class VectorSearchRequest(BaseSearchRequest):
 
 class SearchResponse(BaseModel):
     results: list[SearchResult]
+
+
+class WineSearchResult(BaseModel):
+    name: str
+    score: float
+    link: str
+
+
+class WineSearchResponse(BaseModel):
+    results: list[WineSearchResult]
