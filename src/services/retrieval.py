@@ -1,60 +1,65 @@
+import asyncio
+
 from fastapi import UploadFile
 
-from repositories.qdrant import QdrantRepository
+from config import settings
 from repositories.product import ProductRepository
-
+from repositories.qdrant import QdrantRepository
+from schemas.search import SearchResponse, VectorSearchRequest
 from services.embedding import EmbeddingService
 from services.ocr import OCRService
-
-from schemas.search import VectorSearchRequest
+from utils.fusion import reciprocal_rank_fusion
 
 
 class RetrievalService:
 
     def __init__(
-            self,
-            qdrant_repository: QdrantRepository,
-            embedding_service: EmbeddingService,
-            ocr_service: OCRService,
-            product_repository: ProductRepository
+        self,
+        qdrant_repository: QdrantRepository,
+        embedding_service: EmbeddingService,
+        ocr_service: OCRService,
+        product_repository: ProductRepository | None = None,
     ):
         self.qdrant_repository = qdrant_repository
-        self.embedding_service = embedding_service,
+        self.embedding_service = embedding_service
         self.ocr_service = ocr_service
         self.product_repository = product_repository
 
+    async def find_by_photo(self, file: UploadFile, top_k: int = 5) -> SearchResponse:
+        """Поиск вина по фото: SigLIP2 (+ OCR, когда коллекция проиндексирована) → RRF."""
+        data = await file.read()
 
-    async def find_by_photo(self, file: UploadFile):
-        print(file.filename)
-        top_k = 5
-
-        ocr_data = self.ocr_service.text_detection_on_file(file) #"PaddleOCR PP - OCRv5"
-
-        photo_to_text_vector = self.embedding_service.vectorize_text(ocr_data)
-        photo_to_vector = self.embedding_service.vectorize_siglip(file)
-
-        ocr_retrieval_result = await self.qdrant_repository.search(
+        photo_vector = await asyncio.to_thread(
+            self.embedding_service.vectorize_photo, data
+        )
+        siglip_results = await self.qdrant_repository.search(
             VectorSearchRequest(
-                vector=photo_to_text_vector,
+                vector=photo_vector,
                 top_k=top_k,
-                # filters=, можно llm моделью проверять что за тип вина и добавлять в фильтры
-                collection="ocr-data-vectors"
+                collection=settings.qdrant_collection_siglip2,
             )
         )
-        siglip2_retrieval_result = await self.qdrant_repository.search(
-            VectorSearchRequest(
-                vector=photo_to_vector,
-                top_k=top_k,
-                # filters=, можно llm моделью проверять что за тип вина и добавлять в фильтры
-                collection="siglip2-vectors"
-            )
+        print(siglip_results)
+
+        ranked_lists = [siglip_results]
+
+        if await self.qdrant_repository.collection_exists(
+            settings.qdrant_collection_ocr
+        ):
+            ocr_text = await self.ocr_service.text_detection_on_file(data)
+            if ocr_text.strip():
+                ocr_vector = await asyncio.to_thread(
+                    self.embedding_service.vectorize_text, ocr_text
+                )
+                ocr_results = await self.qdrant_repository.search(
+                    VectorSearchRequest(
+                        vector=ocr_vector,
+                        top_k=top_k,
+                        collection=settings.qdrant_collection_ocr,
+                    )
+                )
+                ranked_lists.append(ocr_results)
+
+        return SearchResponse(
+            results=reciprocal_rank_fusion(ranked_lists, k=settings.rrf_k)
         )
-        ocr_data_search_result = await self.product_repository.search(ocr_data)
-
-
-
-        # todo use model photo-to-text, vectorization, search to collection (photo-to-text-vectors)
-        # todo use model photo-to-vector, search to collection (photo-to-vector-vectors)
-        # todo use model ocr, vectorization, HYBRID search to collection (ocr-data-vector)
-
-        # todo Подсчет результатов, возврат ответа

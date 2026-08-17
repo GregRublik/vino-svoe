@@ -17,6 +17,7 @@ class SearchResult(BaseModel):
     score: float
     content: dict
     metadata: dict
+    link: Optional[str] = None
 
 # class SearchQueryTextRequest(BaseModel):
 #     query: str

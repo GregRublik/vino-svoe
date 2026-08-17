@@ -1,11 +1,16 @@
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
-from qdrant_client.models import QueryResponse
-from qdrant_client.http.exceptions import UnexpectedResponse, ResponseHandlingException
-
-from schemas.search import VectorSearchRequest
+from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
 
 from exceptions import QdrantCollectionNotFoundException
+from schemas.search import SearchResult, VectorSearchRequest
 
 
 class QdrantRepository:
@@ -25,8 +30,7 @@ class QdrantRepository:
         except ResponseHandlingException:
             return False
 
-    async def search(self, payload: VectorSearchRequest) -> QueryResponse:
-
+    async def search(self, payload: VectorSearchRequest) -> list[SearchResult]:
         try:
             query_filter = None
             if payload.filters:
@@ -40,15 +44,42 @@ class QdrantRepository:
                     ]
                 )
 
-            return await self.client.query_points(
+            response = await self.client.query_points(
                 collection_name=payload.collection,
                 query=payload.vector,
                 query_filter=query_filter,
                 with_payload=True,
-                limit=10
+                limit=payload.top_k,
             )
+
+            return [
+                SearchResult(
+                    id=point.id,
+                    score=point.score,
+                    content=point.payload or {},
+                    metadata=point.payload or {},
+                    link=(point.payload or {}).get("link"),
+                )
+                for point in response.points
+            ]
 
         except UnexpectedResponse as e:
             if self._is_collection_not_found(e):
-                raise QdrantCollectionNotFoundException
+                raise QdrantCollectionNotFoundException(
+                    f"Collection {payload.collection} doesn't exist"
+                ) from e
             raise
+
+    async def collection_exists(self, name: str) -> bool:
+        return await self.client.collection_exists(collection_name=name)
+
+    async def create_collection(self, name: str, dim: int) -> None:
+        """Создаёт коллекцию с косинусной метрикой, если её ещё нет (идемпотентно)."""
+        if not await self.collection_exists(name):
+            await self.client.create_collection(
+                collection_name=name,
+                vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+            )
+
+    async def upsert(self, collection: str, points: list[PointStruct]) -> None:
+        await self.client.upsert(collection_name=collection, points=points)
