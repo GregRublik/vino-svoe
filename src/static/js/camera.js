@@ -27,39 +27,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const containerWidth = container.clientWidth;
         const containerHeight = container.clientHeight;
         
-        // Определяем базовый размер в зависимости от пропорций видео
-        let baseSize = 0.75; // 75% от размера контейнера по умолчанию
-        
-        // Адаптируем под разные пропорции
-        if (aspectRatio > 1.5) {
-            // Широкоформатное видео (горизонтальное)
-            baseSize = 0.65;
-        } else if (aspectRatio < 0.8) {
-            // Узкое видео (вертикальное)
-            baseSize = 0.85;
-        } else {
-            // Квадратное или близкое к квадратному
-            baseSize = 0.75;
-        }
-        
-        // Учитываем размер экрана
-        const screenWidth = window.innerWidth;
-        if (screenWidth < 400) {
-            baseSize = Math.min(baseSize * 1.1, 0.9); // На маленьких экранах делаем чуть больше
-        } else if (screenWidth > 768) {
-            baseSize = Math.min(baseSize * 0.9, 0.8); // На больших экранах делаем чуть меньше
-        }
-        
-        // Применяем размеры
-        const sizePercent = baseSize * 100;
-        bottleTemplate.style.width = sizePercent + '%';
-        bottleTemplate.style.height = (sizePercent * 0.9) + '%'; // Сохраняем пропорции
+        // Трафарет теперь всегда на всю ширину и высоту
+        // Просто убеждаемся, что он занимает 100% контейнера
+        bottleTemplate.style.width = '100%';
+        bottleTemplate.style.height = '100%';
+        bottleTemplate.style.objectFit = 'contain';
+        bottleTemplate.style.objectPosition = 'center';
         
         console.log('Адаптация трафарета:', {
             videoSize: `${videoWidth}x${videoHeight}`,
             aspectRatio: aspectRatio,
             containerSize: `${containerWidth}x${containerHeight}`,
-            sizePercent: sizePercent + '%'
+            trafSize: '100% x 100%'
         });
     }
 

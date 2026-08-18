@@ -33,7 +33,7 @@
     object-fit: cover;
 }
 
-/* Трафарет из изображения - адаптивный */
+/* Трафарет из изображения - на всю ширину */
 .bottle-overlay {
     position: absolute;
     top: 0;
@@ -47,12 +47,10 @@
 }
 
 .bottle-overlay img {
-    width: auto;
-    height: auto;
-    max-width: 85%;
-    max-height: 85%;
-    object-fit: contain;
-    /* Адаптивный размер через JS будет управлять */
+    width: 100% !important;     /* Растягиваем на всю ширину */
+    height: 100% !important;    /* Растягиваем на всю высоту */
+    object-fit: contain;        /* Сохраняем пропорции, но вписываем в контейнер */
+    object-position: center;    /* Центрируем */
 }
 
 /* Подсказка внизу */
@@ -136,14 +134,14 @@
 /* Адаптивные размеры для разных экранов */
 @media (max-width: 400px) {
     .bottle-overlay img {
-        max-width: 90%;
-        max-height: 80%;
+        width: 100% !important;
+        height: 100% !important;
     }
 }
 
 @media (min-width: 768px) {
     .bottle-overlay img {
-        max-width: 75%;
-        max-height: 85%;
+        width: 100% !important;
+        height: 100% !important;
     }
 }
