@@ -32,21 +32,21 @@ class RetrievalService:
         photo_vector = await asyncio.to_thread(
             self.embedding_service.vectorize_photo, data
         )
-        siglip_results = await self.qdrant_repository.search(
+        siglip_results = await self.qdrant_repository.search( # ищем в коллекции siglip2
             VectorSearchRequest(
                 vector=photo_vector,
                 top_k=top_k,
                 collection=settings.qdrant_collection_siglip2,
             )
         )
-        print(siglip_results)
-
+        print(siglip_results[0])
         ranked_lists = [siglip_results]
 
         if await self.qdrant_repository.collection_exists(
             settings.qdrant_collection_ocr
         ):
             ocr_text = await self.ocr_service.text_detection_on_file(data)
+            print(ocr_text)
             if ocr_text.strip():
                 ocr_vector = await asyncio.to_thread(
                     self.embedding_service.vectorize_text, ocr_text

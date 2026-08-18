@@ -8,7 +8,6 @@ Upsert идемпотентен (id точки = sha256 от имени файл
 """
 
 import asyncio
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -23,17 +22,12 @@ sys.path.insert(0, str(SRC_DIR))
 from config import settings
 from repositories.qdrant import QdrantRepository
 from services.embedding import EmbeddingService
+from utils.ids import stable_int_id
 
 REPO_ROOT = SRC_DIR.parent
 IMAGES_DIR = REPO_ROOT / "data" / "images"
 LINKS_PATH = REPO_ROOT / "data" / "embedings" / "wine_links.json"
 BATCH_SIZE = 64
-
-
-def stable_int_id(filename: str) -> int:
-    """Стабильный числовой id точки из имени файла (встроенный hash() — salted, не годится)."""
-    digest = hashlib.sha256(filename.encode("utf-8")).hexdigest()[:16]
-    return int(digest, 16)
 
 
 def load_links() -> dict[str, str | None]:

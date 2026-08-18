@@ -52,7 +52,9 @@ class EmbeddingService:
         )
 
     def _load_text_model(self) -> None:
-        model = SentenceTransformer.from_pretrained(self._text_model_id)
+        # sentence-transformers 5.x удалил SentenceTransformer.from_pretrained —
+        # загрузка через конструктор.
+        model = SentenceTransformer(self._text_model_id)
         if hasattr(model, "to"):
             model = model.to(self.device)
         self._text_model = model

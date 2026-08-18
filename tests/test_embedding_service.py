@@ -75,10 +75,8 @@ class FakeSiglipProcessor:
 class FakeTextModel:
     loaded = False
 
-    @classmethod
-    def from_pretrained(cls, model_id):
+    def __init__(self, model_id):
         FakeTextModel.loaded = True
-        return cls()
 
     def encode(self, text, normalize_embeddings=True):
         return torch.tensor([1.0, 0.0, 0.0, 0.0])
