@@ -1,68 +1,121 @@
 {% extends "base.html" %}
-{% load static %}
 
 {% block head %}
 <title>Главная страница</title>
-<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+<link rel="stylesheet" href="/static/css/index.css">
 {% endblock head %}
 
 {% block body %}
-<div class="container">
-    <!-- Заголовок -->
-    <h1 class="title">Свое Вино</h1>
+ <div class="container">
+        <!-- Заголовок -->
+        <h1 class="title">Свое Вино</h1>
 
-    <!-- Блок сканирования -->
-    <section class="scan-section">
-        <h2 class="scan-title">Сканирование вина</h2>
-        
-        <p class="scan-description">
-            Наведите камеру на вино или загрузите фото, чтобы узнать винодельню, сорт и регион.
-        </p>
-
-        <!-- Блок загрузки -->
-        <div class="upload-area">
-            <p class="upload-label">
-                <strong>Загрузите фото вина</strong><br>
-                или используйте камеру
+        <!-- Блок сканирования -->
+        <section class="scan-section">
+            <h2 class="scan-title">Сканирование вина</h2>
+            
+            <p class="scan-description">
+                Наведите камеру на вино или загрузите фото, чтобы узнать винодельню, сорт и регион.
             </p>
 
-            <!-- КАМЕРА (скрытый input) -->
-            <input 
-                type="file" 
-                accept="image/*" 
-                capture="environment" 
-                id="cameraInput"
-                class="hidden-input"
-            >
+            <!-- Блок загрузки -->
+            <div class="upload-area">
+                <p class="upload-label">
+                    <strong>Загрузите фото вина</strong><br>
+                    или используйте камеру
+                </p>
 
-            <!-- ГАЛЕРЕЯ (скрытый input) -->
-            <input 
-                type="file" 
-                accept="image/*" 
-                id="fileInput"
-                class="hidden-input"
-            >
+                <!-- КАМЕРА (скрытый input) -->
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="environment" 
+                    id="cameraInput"
+                    class="hidden-input"
+                >
 
-            <!-- Кнопки-триггеры -->
-            <div class="button-group">
-                <label for="cameraInput" class="btn btn-camera">
-                    📷 Открыть камеру
-                </label>
-                <label for="fileInput" class="btn btn-gallery">
-                    📂 Выбрать фото
-                </label>
+                <!-- ГАЛЕРЕЯ (скрытый input) -->
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    id="fileInput"
+                    class="hidden-input"
+                >
+
+                <!-- Кнопки-триггеры -->
+                <div class="button-group">
+                    <label for="cameraInput" class="btn btn-camera">
+                        📷 Открыть камеру
+                    </label>
+                    <label for="fileInput" class="btn btn-gallery">
+                        📂 Выбрать фото
+                    </label>
+                </div>
+
+                <p class="file-types">JPG, PNG, WEBP</p>
             </div>
 
-            <p class="file-types">JPG, PNG, WEBP</p>
-        </div>
+            <!-- Кнопка распознавания -->
+            <button class="btn btn-recognize" id="recognizeBtn">Распознать вино</button>
 
-        <!-- Кнопка распознавания -->
-        <button class="btn btn-recognize">Распознать вино</button>
+            <!-- Футер -->
+            <footer class="footer">
+                <p>Свое Вино · 18+ · О проекте</p>
+            </footer>
+            
+        </section>
+    </div>
 
-        <!-- Футер -->
-        <footer class="footer">
-            <p>Свое Вино · 18+ · О проекте</p>
-        </footer>
-    </section>
-</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cameraInput = document.getElementById('cameraInput');
+    const fileInput = document.getElementById('fileInput');
+    const recognizeBtn = document.getElementById('recognizeBtn');
+    let selectedFile = null;
+
+    cameraInput.addEventListener('change', function(e) {
+        if (this.files.length > 0) {
+            selectedFile = this.files[0];
+        }
+    });
+
+    fileInput.addEventListener('change', function(e) {
+        if (this.files.length > 0) {
+            selectedFile = this.files[0];
+        }
+    });
+
+    recognizeBtn.addEventListener('click', async function() {
+        if (!selectedFile) {
+            alert('Пожалуйста, сначала выберите или сфотографируйте вино');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('photo', selectedFile);
+        formData.append('top_k', '5');
+
+        try {
+            recognizeBtn.textContent = '⏳ Распознаем...';
+            recognizeBtn.disabled = true;
+
+            const response = await fetch('/search', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            console.log('Результат:', result);
+
+        } catch (error) {
+            console.error('Ошибка:', error);
+            alert('Ошибка при распознавании');
+        } finally {
+            recognizeBtn.textContent = 'Распознать вино';
+            recognizeBtn.disabled = false;
+        }
+    });
+});
+</script>
+
 {% endblock body %}
