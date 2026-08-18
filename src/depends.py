@@ -2,6 +2,7 @@ from functools import lru_cache
 
 from fastapi import Depends
 from qdrant_client import AsyncQdrantClient
+from fastapi.templating import Jinja2Templates
 
 from config import settings
 from repositories.product import ProductRepository
@@ -9,6 +10,8 @@ from repositories.qdrant import QdrantRepository
 from services.embedding import EmbeddingService
 from services.ocr import OCRService
 from services.retrieval import RetrievalService
+
+templates = Jinja2Templates(directory="src/templates")
 
 
 @lru_cache

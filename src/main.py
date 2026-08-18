@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from api.v1.endpoints import search
+from api.v1.endpoints import search, pages
 
 from config import settings
 from exceptions import QdrantCollectionNotFoundException
@@ -10,6 +10,7 @@ from exceptions import QdrantCollectionNotFoundException
 app = FastAPI()
 
 app.include_router(search.router)
+app.include_router(pages.router)
 
 
 @app.exception_handler(QdrantCollectionNotFoundException)
