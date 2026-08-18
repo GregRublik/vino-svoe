@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from api.v1.endpoints import search, pages
@@ -21,6 +22,8 @@ async def qdrant_collection_not_found_handler(
         status_code=503,
         content={"detail": "Векторная коллекция ещё не проиндексирована"},
     )
+
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 
 if __name__ == "__main__":
