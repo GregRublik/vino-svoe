@@ -2,7 +2,10 @@
 
 {% block head %}
 <title>Главная страница</title>
+
 <link rel="stylesheet" href="/static/css/index.css">
+
+
 {% endblock head %}
 
 {% block body %}
@@ -13,7 +16,7 @@
         <!-- Блок сканирования -->
         <section class="scan-section">
             <h2 class="scan-title">Сканирование вина</h2>
-            
+
             <p class="scan-description">
                 Наведите камеру на вино или загрузите фото, чтобы узнать винодельню, сорт и регион.
             </p>
@@ -26,6 +29,7 @@
                 </p>
 
                 <!-- КАМЕРА (скрытый input) -->
+
                 <input 
                     type="file" 
                     accept="image/*" 
@@ -56,12 +60,14 @@
             </div>
 
             <!-- Кнопка распознавания -->
+
             <button class="btn btn-recognize" id="recognizeBtn">Распознать вино</button>
 
             <!-- Футер -->
             <footer class="footer">
                 <p>Свое Вино · 18+ · О проекте</p>
             </footer>
+<<<<<<< HEAD
             
         </section>
     </div>
@@ -117,5 +123,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
 
 {% endblock body %}
