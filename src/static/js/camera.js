@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== ФУНКЦИЯ ОТПРАВКИ НА СЕРВЕР =====
     async function sendToServer() {
         if (!selectedFile) {
-            alert('Пожалуйста, выберите фото');
             return;
         }
 
@@ -32,14 +31,54 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: formData
             });
 
+            // Проверяем статус ответа
+            if (!response.ok) {
+                console.error('Ошибка сервера:', response.status);
+                recognizeBtn.textContent = 'Распознать вино';
+                recognizeBtn.disabled = false;
+                recognizeBtn.style.background = '';
+                return;
+            }
+
             const result = await response.json();
-            console.log('Результат:', result);
-            alert('✅ Распознавание завершено! Результат в консоли.');
+            console.log('Результат распознавания:', result);
+
+            // ===== ПРОВЕРЯЕМ РАЗНЫЕ ФОРМАТЫ ОТВЕТА =====
+            let wineLink = null;
+            let wineName = null;
+
+            // Вариант 1: result.results[0].link
+            if (result.results && result.results.length > 0) {
+                const firstResult = result.results[0];
+                wineLink = firstResult.link || firstResult.content?.link || firstResult.metadata?.link;
+                wineName = firstResult.content?.filename || firstResult.metadata?.filename || 'вино';
+            }
+            // Вариант 2: result.link (если ответ без results)
+            else if (result.link) {
+                wineLink = result.link;
+                wineName = result.content?.filename || result.metadata?.filename || 'вино';
+            }
+            // Вариант 3: result.content?.link
+            else if (result.content?.link) {
+                wineLink = result.content.link;
+                wineName = result.content.filename || 'вино';
+            }
+            
+            if (wineLink) {
+                console.log('🔗 Перенаправление на:', wineLink);
+                console.log('🍷 Найдено вино:', wineName);
+                
+                // ПЕРЕНАПРАВЛЯЕМ НА СТРАНИЦУ ВИНА
+                window.location.href = wineLink;
+            } else {
+                console.warn('Вино не найдено или нет ссылки');
+                recognizeBtn.textContent = 'Распознать вино';
+                recognizeBtn.disabled = false;
+                recognizeBtn.style.background = '';
+            }
 
         } catch (error) {
             console.error('Ошибка:', error);
-            alert('❌ Ошибка при распознавании');
-        } finally {
             recognizeBtn.textContent = 'Распознать вино';
             recognizeBtn.disabled = false;
             recognizeBtn.style.background = '';
@@ -71,7 +110,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('✅ Камера запущена');
         } catch (error) {
             console.error('Ошибка камеры:', error);
-            alert('❌ Не удалось получить доступ к камере');
             closeCamera();
         }
     }
@@ -86,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cameraModal.classList.remove('active');
     }
 
-    // ===== ФУНКЦИЯ АДАПТАЦИИ ТРАФАРЕТА (растягиваем на всю ширину и высоту) =====
+    // ===== ФУНКЦИЯ АДАПТАЦИИ ТРАФАРЕТА =====
     function adaptBottleSize() {
         // Трафарет на всю ширину и высоту контейнера
         bottleTemplate.style.width = '100%';
@@ -153,7 +191,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 2. КНОПКА "СФОТОГРАФИРОВАТЬ"
     captureBtn.addEventListener('click', function() {
         if (!video.videoWidth || !video.videoHeight) {
-            alert('Камера еще не готова');
             return;
         }
         
@@ -177,6 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
         }, 'image/jpeg', 0.95);
     });
+
     // 3. КНОПКА "ОТМЕНА"
     cancelBtn.addEventListener('click', closeCamera);
 
