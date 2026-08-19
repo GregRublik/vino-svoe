@@ -33,7 +33,7 @@
     object-fit: cover;
 }
 
-/* Трафарет из изображения - на всю ширину */
+/* Трафарет - на всю ширину */
 .bottle-overlay {
     position: absolute;
     top: 0;
@@ -47,10 +47,10 @@
 }
 
 .bottle-overlay img {
-    width: 100% !important;     /* Растягиваем на всю ширину */
-    height: 100% !important;    /* Растягиваем на всю высоту */
-    object-fit: contain;        /* Сохраняем пропорции, но вписываем в контейнер */
-    object-position: center;    /* Центрируем */
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center !important;
 }
 
 /* Подсказка внизу */
@@ -73,7 +73,6 @@
     z-index: 5;
 }
 
-/* Подсказка вверху */
 .camera-hint {
     color: white;
     text-align: center;
@@ -126,22 +125,7 @@
     background: rgba(255, 255, 255, 0.3);
 }
 
-/* Скрытый canvas */
+
 #canvas {
     display: none;
-}
-
-/* Адаптивные размеры для разных экранов */
-@media (max-width: 400px) {
-    .bottle-overlay img {
-        width: 100% !important;
-        height: 100% !important;
-    }
-}
-
-@media (min-width: 768px) {
-    .bottle-overlay img {
-        width: 100% !important;
-        height: 100% !important;
-    }
 }
