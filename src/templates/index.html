@@ -8,46 +8,36 @@
 
 {% block body %}
 <div class="container">
-    <!-- Заголовок -->
     <h1 class="title">Свое Вино</h1>
 
-    <!-- Блок сканирования -->
     <section class="scan-section">
         <h2 class="scan-title">Сканирование вина</h2>
-        
+
         <p class="scan-description">
             Наведите камеру на вино или загрузите фото, чтобы узнать винодельню, сорт и регион.
         </p>
 
-        <!-- Блок загрузки -->
         <div class="upload-area">
             <p class="upload-label">
                 <strong>Загрузите фото вина</strong><br>
                 или используйте камеру
             </p>
 
-            <!-- ГАЛЕРЕЯ (скрытый input) -->
-            <input 
-                type="file" 
-                accept="image/*" 
-                id="fileInput"
-                class="hidden-input"
-            >
+            <input type="file" accept="image/*" id="fileInput" class="hidden-input">
 
-            <!-- Кнопки-триггеры -->
             <div class="button-group">
-                <label for="fileInput" class="btn btn-gallery">
-                    📂 Выбрать фото
-                </label>
+                <label for="fileInput" class="btn btn-gallery">📂 Выбрать фото</label>
+                <button type="button" class="btn btn-camera" id="openCameraBtn">📷 Открыть камеру</button>
             </div>
 
             <p class="file-types">JPG, PNG, WEBP</p>
         </div>
 
-        <!-- Кнопка распознавания -->
         <button class="btn btn-recognize" id="recognizeBtn">Распознать вино</button>
 
-        <!-- Футер -->
+        <!-- Блок результатов -->
+        <div id="results" class="results"></div>
+
         <footer class="footer">
             <p>Свое Вино · 18+ · О проекте</p>
         </footer>
@@ -57,15 +47,14 @@
 <!-- Модальное окно камеры -->
 <div class="camera-modal" id="cameraModal">
     <div class="camera-hint">📷 Наведите камеру на бутылку</div>
-    
-    <div class="camera-container">
-        <video id="video" autoplay playsinline></video>
-        
-        <!-- Трафарет из изображения -->
-        <div class="bottle-overlay">
+
+    <div class="camera-container" id="cameraContainer">
+        <video id="video" autoplay playsinline muted></video>
+
+        <div class="bottle-overlay" id="bottleOverlay">
             <img src="/static/traf.png" alt="Трафарет бутылки" id="bottleTemplate">
         </div>
-        
+
         <div class="bottle-hint">Поместите бутылку в контур</div>
         <canvas id="canvas"></canvas>
     </div>
@@ -77,4 +66,3 @@
 </div>
 <script src="/static/js/camera.js"></script>
 {% endblock body %}
-

@@ -1,0 +1,27 @@
+# ==================== Web ====================
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+
+# ==================== Настройки ====================
+pydantic
+pydantic-settings
+python-dotenv
+
+# ==================== Базы данных ====================
+sqlalchemy
+psycopg2-binary
+qdrant-client
+
+# ==================== ML / Embeddings ====================
+torch
+torchvision
+transformers
+sentence-transformers
+numpy
+tqdm
+
+# ==================== Утилиты ====================
+pillow
+requests

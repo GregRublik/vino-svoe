@@ -1,255 +1,200 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // Получаем элементы
-    const recognizeBtn = document.getElementById('recognizeBtn');
+document.addEventListener('DOMContentLoaded', () => {
     const cameraModal = document.getElementById('cameraModal');
+    const cameraContainer = document.getElementById('cameraContainer');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const captureBtn = document.getElementById('captureBtn');
-    const cancelBtn = document.getElementById('cancelCameraBtn');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+    const openCameraBtn = document.getElementById('openCameraBtn');
     const fileInput = document.getElementById('fileInput');
-    const bottleTemplate = document.getElementById('bottleTemplate');
-    
-    let selectedFile = null;
+    const recognizeBtn = document.getElementById('recognizeBtn');
+    const resultsBlock = document.getElementById('results');
+
     let stream = null;
+    let selectedFile = null; // файл, выбранный из галереи или снятый на камеру
 
-    // ===== ФУНКЦИЯ ОТПРАВКИ НА СЕРВЕР =====
-    async function sendToServer() {
-        if (!selectedFile) {
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('photo', selectedFile);
-        formData.append('top_k', '5');
-
-        try {
-            recognizeBtn.textContent = '⏳ Распознаем...';
-            recognizeBtn.disabled = true;
-
-            const response = await fetch('/search', {
-                method: 'POST',
-                body: formData
-            });
-
-            // Проверяем статус ответа
-            if (!response.ok) {
-                console.error('Ошибка сервера:', response.status);
-                recognizeBtn.textContent = 'Распознать вино';
-                recognizeBtn.disabled = false;
-                recognizeBtn.style.background = '';
-                return;
-            }
-
-            const result = await response.json();
-            console.log('Результат распознавания:', result);
-
-            // ===== ПРОВЕРЯЕМ РАЗНЫЕ ФОРМАТЫ ОТВЕТА =====
-            let wineLink = null;
-            let wineName = null;
-
-            // Вариант 1: result.results[0].link
-            if (result.results && result.results.length > 0) {
-                const firstResult = result.results[0];
-                wineLink = firstResult.link || firstResult.content?.link || firstResult.metadata?.link;
-                wineName = firstResult.content?.filename || firstResult.metadata?.filename || 'вино';
-            }
-            // Вариант 2: result.link (если ответ без results)
-            else if (result.link) {
-                wineLink = result.link;
-                wineName = result.content?.filename || result.metadata?.filename || 'вино';
-            }
-            // Вариант 3: result.content?.link
-            else if (result.content?.link) {
-                wineLink = result.content.link;
-                wineName = result.content.filename || 'вино';
-            }
-            
-            if (wineLink) {
-                console.log('🔗 Перенаправление на:', wineLink);
-                console.log('🍷 Найдено вино:', wineName);
-                
-                // ПЕРЕНАПРАВЛЯЕМ НА СТРАНИЦУ ВИНА
-                window.location.href = wineLink;
-            } else {
-                console.warn('Вино не найдено или нет ссылки');
-                recognizeBtn.textContent = 'Распознать вино';
-                recognizeBtn.disabled = false;
-                recognizeBtn.style.background = '';
-            }
-
-        } catch (error) {
-            console.error('Ошибка:', error);
-            recognizeBtn.textContent = 'Распознать вино';
-            recognizeBtn.disabled = false;
-            recognizeBtn.style.background = '';
-        }
-    }
-
-    // ===== ФУНКЦИЯ ОТКРЫТИЯ КАМЕРЫ =====
+    // ------------------------------------------------------------
+    // Открытие камеры
+    // ------------------------------------------------------------
     async function openCamera() {
         try {
-            cameraModal.classList.add('active');
-            
-            const constraints = {
+            stream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    facingMode: 'environment',
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                }
-            };
-            
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            });
+
             video.srcObject = stream;
-            await video.play();
-            
-            // После запуска видео адаптируем трафарет на всю ширину и высоту
-            setTimeout(() => {
-                adaptBottleSize();
-            }, 100);
-            
-            console.log('✅ Камера запущена');
-        } catch (error) {
-            console.error('Ошибка камеры:', error);
-            closeCamera();
+            video.onloadedmetadata = () => adjustContainerToVideo();
+            cameraModal.classList.add('active');
+        } catch (err) {
+            console.error('Ошибка доступа к камере:', err);
+            alert('Не удалось получить доступ к камере');
         }
     }
 
-    // ===== ФУНКЦИЯ ЗАКРЫТИЯ КАМЕРЫ =====
+    function adjustContainerToVideo() {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (!vw || !vh) return;
+
+        const ratio = vw / vh;
+        const maxW = Math.min(window.innerWidth - 32, 640);
+        const maxH = window.innerHeight - 200;
+
+        let w, h;
+        if (ratio >= 1) {
+            w = maxW;
+            h = w / ratio;
+            if (h > maxH) { h = maxH; w = h * ratio; }
+        } else {
+            h = maxH;
+            w = h * ratio;
+            if (w > maxW) { w = maxW; h = w / ratio; }
+        }
+
+        cameraContainer.style.width = w + 'px';
+        cameraContainer.style.height = h + 'px';
+        cameraContainer.style.aspectRatio = 'auto';
+    }
+
     function closeCamera() {
         if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach(t => t.stop());
             stream = null;
         }
         video.srcObject = null;
         cameraModal.classList.remove('active');
     }
 
-    // ===== ФУНКЦИЯ АДАПТАЦИИ ТРАФАРЕТА =====
-    function adaptBottleSize() {
-        // Трафарет на всю ширину и высоту контейнера
-        bottleTemplate.style.width = '100%';
-        bottleTemplate.style.height = '100%';
-        bottleTemplate.style.objectFit = 'contain';
-        bottleTemplate.style.objectPosition = 'center';
-        
-        console.log('✅ Трафарет адаптирован на всю ширину и высоту');
-    }
+    // ------------------------------------------------------------
+    // Захват кадра
+    // ------------------------------------------------------------
+    function capturePhoto() {
+        if (!video.videoWidth) return;
 
-    // ===== ФУНКЦИЯ ПОКАЗА ПРЕВЬЮ =====
-    function showPreview(file) {
-        // Удаляем старое превью
-        const oldPreview = document.querySelector('.preview-container');
-        if (oldPreview) {
-            oldPreview.remove();
-        }
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const container = document.createElement('div');
-            container.className = 'preview-container';
-            container.style.cssText = 'margin: 15px 0; text-align: center;';
-            
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.style.cssText = 'max-width: 100%; max-height: 250px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);';
-            
-            const fileName = document.createElement('p');
-            fileName.style.cssText = 'font-size: 13px; color: #666; margin-top: 8px;';
-            fileName.textContent = `📎 ${file.name}`;
-            
-            container.appendChild(img);
-            container.appendChild(fileName);
-            
-            const uploadArea = document.querySelector('.upload-area');
-            uploadArea.parentNode.insertBefore(container, uploadArea.nextSibling);
-        };
-        reader.readAsDataURL(file);
-    }
-
-    // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
-
-    // 1. ГЛАВНАЯ КНОПКА "РАСПОЗНАТЬ"
-    recognizeBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        console.log('🔘 Кнопка нажата');
-        console.log('📁 selectedFile:', selectedFile ? selectedFile.name : 'null');
-        
-        // ЕСЛИ ЕСТЬ ФАЙЛ - ОТПРАВЛЯЕМ НА СЕРВЕР
-        if (selectedFile) {
-            console.log('📤 Отправляем на сервер...');
-            sendToServer();
-            return;
-        }
-        
-        // ЕСЛИ НЕТ ФАЙЛА - ОТКРЫВАЕМ КАМЕРУ
-        console.log('📷 Открываем камеру...');
-        openCamera();
-    });
-
-    // 2. КНОПКА "СФОТОГРАФИРОВАТЬ"
-    captureBtn.addEventListener('click', function() {
-        if (!video.videoWidth || !video.videoHeight) {
-            return;
-        }
-        
-        console.log('📸 Делаем фото...');
-        
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        
-        const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        canvas.toBlob(function(blob) {
-            selectedFile = new File([blob], 'photo_from_camera.jpg', { type: 'image/jpeg' });
-            console.log('✅ Фото сделано:', selectedFile.name);
-            
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            selectedFile = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
+            console.log('Фото с камеры готово:', selectedFile.size, 'байт');
             closeCamera();
-            showPreview(selectedFile);
-            
-            recognizeBtn.textContent = '📸 Распознать (фото готово)';
-            recognizeBtn.style.background = '#2d7d2d';
-            
-        }, 'image/jpeg', 0.95);
+            // Можно сразу отправить на распознавание:
+            sendToSearch(selectedFile);
+        }, 'image/jpeg', 0.9);
+    }
+
+    // ------------------------------------------------------------
+    // Отправка на /search
+    // ------------------------------------------------------------
+    async function sendToSearch(file) {
+        if (!file) {
+            alert('Сначала выберите или снимите фото');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('photo', file);   // ← имя поля как в openapi: "photo"
+        formData.append('top_k', 5);
+
+        // Индикация загрузки
+        resultsBlock.innerHTML = '<p>Распознаём...</p>';
+
+        try {
+            const response = await fetch('/search', {   // ← путь как в openapi
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errText}`);
+            }
+
+            const data = await response.json();
+            console.log('Результат распознавания:', data);
+            renderResults(data);
+        } catch (err) {
+            console.error('Ошибка запроса:', err);
+            resultsBlock.innerHTML = `<p style="color:red">Ошибка: ${err.message}</p>`;
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Отрисовка результатов
+    // ------------------------------------------------------------
+    function renderResults(data) {
+        const results = data.results || [];
+
+        if (!results.length) {
+            resultsBlock.innerHTML = '<p>Ничего не найдено</p>';
+            return;
+        }
+
+        const html = results.map(r => {
+            const meta = r.metadata || {};
+            const title = meta.title || meta.name || `ID ${r.id}`;
+            const link = r.link ? `<a href="${r.link}" target="_blank">Подробнее</a>` : '';
+            return `
+                <div class="result-card">
+                    <h3>${title}</h3>
+                    <p><small>score: ${r.score.toFixed(3)}</small></p>
+                    ${link}
+                </div>
+            `;
+        }).join('');
+
+        resultsBlock.innerHTML = `<h2>Найдено: ${results.length}</h2>${html}`;
+    }
+
+    // ------------------------------------------------------------
+    // Выбор файла из галереи
+    // ------------------------------------------------------------
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            selectedFile = file;
+            console.log('Файл выбран:', file.name, file.size, 'байт');
+        });
+    }
+
+    // ------------------------------------------------------------
+    // Обработчики событий
+    // ------------------------------------------------------------
+    if (openCameraBtn) openCameraBtn.addEventListener('click', openCamera);
+    if (captureBtn) captureBtn.addEventListener('click', capturePhoto);
+    if (cancelCameraBtn) cancelCameraBtn.addEventListener('click', closeCamera);
+
+    if (recognizeBtn) {
+        recognizeBtn.addEventListener('click', () => {
+            if (selectedFile) {
+                sendToSearch(selectedFile);
+            } else if (fileInput && fileInput.files[0]) {
+                sendToSearch(fileInput.files[0]);
+            } else {
+                alert('Сначала выберите фото или снимите на камеру');
+            }
+        });
+    }
+
+    window.addEventListener('resize', () => {
+        if (cameraModal.classList.contains('active') && video.videoWidth) {
+            adjustContainerToVideo();
+        }
     });
 
-    // 3. КНОПКА "ОТМЕНА"
-    cancelBtn.addEventListener('click', closeCamera);
-
-    // 4. ЗАКРЫТИЕ ПО КЛИКУ НА ФОН
-    cameraModal.addEventListener('click', function(e) {
-        if (e.target === cameraModal) {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && cameraModal.classList.contains('active')) {
             closeCamera();
         }
     });
-
-    // 5. ВЫБОР ФАЙЛА ИЗ ГАЛЕРЕИ
-    fileInput.addEventListener('change', function(e) {
-        if (this.files.length > 0) {
-            selectedFile = this.files[0];
-            console.log('✅ Файл выбран:', selectedFile.name);
-            showPreview(selectedFile);
-            recognizeBtn.textContent = '📸 Распознать (фото готово)';
-            recognizeBtn.style.background = '#2d7d2d';
-        }
-        this.value = '';
-    });
-
-    // 6. АДАПТАЦИЯ ТРАФАРЕТА ПРИ ИЗМЕНЕНИИ РАЗМЕРА
-    window.addEventListener('resize', function() {
-        if (cameraModal.classList.contains('active')) {
-            adaptBottleSize();
-        }
-    });
-
-    // 7. АДАПТАЦИЯ ПРИ ЗАГРУЗКЕ ВИДЕО
-    video.addEventListener('loadedmetadata', function() {
-        adaptBottleSize();
-    });
-
-    console.log('✅ Скрипт загружен');
-    console.log('💡 Если есть фото - кнопка отправит на сервер');
-    console.log('💡 Если нет фото - кнопка откроет камеру');
 });
