@@ -3,10 +3,6 @@ import io
 import pytest
 from PIL import Image
 
-# легаси-скрипт DINOv2 (не pytest-тест, грузит torch.hub при импорте)
-collect_ignore = ["embedings_test.py"]
-
-
 def make_webp_bytes(size=(64, 64), color=(255, 0, 0)) -> bytes:
     """Создаёт in-memory WEBP-изображение (без записи на диск)."""
     buf = io.BytesIO()

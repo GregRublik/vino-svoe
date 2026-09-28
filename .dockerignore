@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+tests
+Датасет
+data/images
+data/yolo_ann/runs
+*.npy
+

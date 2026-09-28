@@ -8,9 +8,140 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelBtn = document.getElementById('cancelCameraBtn');
     const fileInput = document.getElementById('fileInput');
     const bottleTemplate = document.getElementById('bottleTemplate');
+    const resultSection = document.getElementById('resultSection');
+    const resultContent = document.getElementById('resultContent');
     
     let selectedFile = null;
     let stream = null;
+
+    function addTextElement(parent, tagName, className, text) {
+        const element = document.createElement(tagName);
+        element.className = className;
+        element.textContent = text;
+        parent.appendChild(element);
+        return element;
+    }
+
+    function createWineCard(result, compact = false) {
+        const card = result.card || {};
+        const article = document.createElement('article');
+        article.className = compact ? 'wine-card wine-card-compact' : 'wine-card';
+
+        const fallbackName = card.slug || result.content?.filename || 'Вино';
+        addTextElement(article, 'h3', 'wine-card-title', card.name || fallbackName);
+
+        const meta = document.createElement('div');
+        meta.className = 'wine-card-meta';
+        const fields = [
+            ['Винодельня', card.winery],
+            ['Регион', card.region],
+            ['Сорт винограда', card.grape_variety],
+            ['Категория', card.category],
+            ['Цвет', card.color],
+            ['Рейтинг', card.rating],
+        ];
+
+        fields.forEach(([label, value]) => {
+            if (value === null || value === undefined || String(value).trim() === '') {
+                return;
+            }
+            const row = document.createElement('div');
+            row.className = 'wine-card-meta-row';
+            addTextElement(row, 'span', 'wine-card-meta-label', label);
+            addTextElement(row, 'span', 'wine-card-meta-value', String(value));
+            meta.appendChild(row);
+        });
+        if (meta.childElementCount > 0) {
+            article.appendChild(meta);
+        }
+
+        if (card.description) {
+            const description = document.createElement('div');
+            description.className = 'wine-card-block';
+            addTextElement(description, 'div', 'wine-card-block-title', 'Описание');
+            addTextElement(description, 'div', 'wine-card-block-text', card.description);
+            article.appendChild(description);
+        }
+
+        if (card.food_pairing) {
+            const pairing = document.createElement('div');
+            pairing.className = 'wine-card-block';
+            addTextElement(pairing, 'div', 'wine-card-block-title', 'С чем подавать');
+            addTextElement(pairing, 'div', 'wine-card-block-text', card.food_pairing);
+            article.appendChild(pairing);
+        }
+
+        const link = card.link || result.link;
+        if (link) {
+            const linkElement = document.createElement('a');
+            linkElement.className = 'wine-card-link';
+            linkElement.href = link;
+            linkElement.target = '_blank';
+            linkElement.rel = 'noopener noreferrer';
+            linkElement.textContent = 'Открыть карточку на сайте «Своё вино»';
+            article.appendChild(linkElement);
+        }
+
+        if (!card.description) {
+            addTextElement(
+                article,
+                'div',
+                'result-description',
+                'Подробное описание для этой позиции пока недоступно.'
+            );
+        }
+
+        return article;
+    }
+
+    function showResultMessage(title, message, isError = false) {
+        resultContent.replaceChildren();
+        resultSection.hidden = false;
+        addTextElement(resultContent, 'h2', 'result-heading', title);
+        addTextElement(
+            resultContent,
+            'div',
+            isError ? 'result-message result-message-error' : 'result-message',
+            message
+        );
+    }
+
+    function renderSearchResult(searchResult) {
+        resultContent.replaceChildren();
+        resultSection.hidden = false;
+        const results = Array.isArray(searchResult.results) ? searchResult.results : [];
+
+        if (searchResult.found && results.length > 0) {
+            addTextElement(resultContent, 'h2', 'result-heading', 'Вино найдено');
+            resultContent.appendChild(createWineCard(results[0]));
+        } else {
+            addTextElement(resultContent, 'h2', 'result-heading', 'Точное совпадение не найдено');
+            addTextElement(
+                resultContent,
+                'p',
+                'result-description',
+                'Мы не можем уверенно определить вино по этому фото. Ниже — похожие позиции из каталога.'
+            );
+
+            const alternatives = results.filter(result => result.card);
+            if (alternatives.length > 0) {
+                addTextElement(resultContent, 'h3', 'wine-card-block-title', 'Похожие вина');
+                const grid = document.createElement('div');
+                grid.className = 'alternatives-grid';
+                alternatives.forEach(result => {
+                    grid.appendChild(createWineCard(result, true));
+                });
+                resultContent.appendChild(grid);
+            } else {
+                showResultMessage(
+                    'Вино не найдено',
+                    'В каталоге нет подходящей карточки. Попробуйте сделать фото ближе и при хорошем освещении.'
+                );
+            }
+        }
+
+        resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 
     // ===== ФУНКЦИЯ ОТПРАВКИ НА СЕРВЕР =====
     async function sendToServer() {
@@ -31,9 +162,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: formData
             });
 
-            // Проверяем статус ответа
             if (!response.ok) {
-                console.error('Ошибка сервера:', response.status);
+                const errorBody = await response.json().catch(() => ({}));
+                showResultMessage(
+                    'Не удалось распознать фото',
+                    errorBody.detail || 'Сервис временно недоступен. Попробуйте ещё раз.',
+                    true
+                );
                 recognizeBtn.textContent = 'Распознать вино';
                 recognizeBtn.disabled = false;
                 recognizeBtn.style.background = '';
@@ -41,44 +176,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const result = await response.json();
-            console.log('Результат распознавания:', result);
-
-            // ===== ПРОВЕРЯЕМ РАЗНЫЕ ФОРМАТЫ ОТВЕТА =====
-            let wineLink = null;
-            let wineName = null;
-
-            // Вариант 1: result.results[0].link
-            if (result.results && result.results.length > 0) {
-                const firstResult = result.results[0];
-                wineLink = firstResult.link || firstResult.content?.link || firstResult.metadata?.link;
-                wineName = firstResult.content?.filename || firstResult.metadata?.filename || 'вино';
-            }
-            // Вариант 2: result.link (если ответ без results)
-            else if (result.link) {
-                wineLink = result.link;
-                wineName = result.content?.filename || result.metadata?.filename || 'вино';
-            }
-            // Вариант 3: result.content?.link
-            else if (result.content?.link) {
-                wineLink = result.content.link;
-                wineName = result.content.filename || 'вино';
-            }
-            
-            if (wineLink) {
-                console.log('🔗 Перенаправление на:', wineLink);
-                console.log('🍷 Найдено вино:', wineName);
-                
-                // ПЕРЕНАПРАВЛЯЕМ НА СТРАНИЦУ ВИНА
-                window.location.href = wineLink;
-            } else {
-                console.warn('Вино не найдено или нет ссылки');
-                recognizeBtn.textContent = 'Распознать вино';
-                recognizeBtn.disabled = false;
-                recognizeBtn.style.background = '';
-            }
+            renderSearchResult(result);
+            recognizeBtn.textContent = 'Распознать ещё раз';
+            recognizeBtn.disabled = false;
+            recognizeBtn.style.background = '';
 
         } catch (error) {
             console.error('Ошибка:', error);
+            showResultMessage(
+                'Ошибка соединения',
+                'Не удалось связаться с сервисом. Проверьте подключение и повторите попытку.',
+                true
+            );
             recognizeBtn.textContent = 'Распознать вино';
             recognizeBtn.disabled = false;
             recognizeBtn.style.background = '';

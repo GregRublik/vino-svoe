@@ -113,17 +113,6 @@ body {
     user-select: none;
 }
 
-.btn-camera {
-    background: #2d2d2d;
-    color: #ffffff;
-    border: 1px solid #2d2d2d;
-}
-
-.btn-camera:hover {
-    background: #1a1a1a;
-    transform: scale(1.02);
-}
-
 .btn-gallery {
     background: #ffffff;
     color: #2d2d2d;
@@ -169,6 +158,126 @@ body {
     transform: translateY(0);
 }
 
+/* Результат поиска */
+.result-section {
+    display: block;
+    margin-top: 4px;
+}
+
+.result-heading {
+    margin-bottom: 12px;
+    color: #1a1a1a;
+    font-size: 20px;
+    line-height: 1.25;
+}
+
+.result-description {
+    margin-bottom: 16px;
+    color: #4a4a4a;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.wine-card {
+    padding: 20px;
+    border: 1px solid #eaded6;
+    border-radius: 20px;
+    background: #fffaf7;
+    box-shadow: 0 6px 18px rgba(80, 35, 20, 0.07);
+}
+
+.wine-card-compact {
+    padding: 16px;
+}
+
+.wine-card + .wine-card {
+    margin-top: 12px;
+}
+
+.wine-card-title {
+    margin-bottom: 12px;
+    color: #5d1717;
+    font-size: 19px;
+    line-height: 1.3;
+}
+
+.wine-card-compact .wine-card-title {
+    font-size: 17px;
+}
+
+.wine-card-meta {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 16px;
+}
+
+.wine-card-meta-row {
+    display: grid;
+    grid-template-columns: minmax(92px, 0.7fr) 1.3fr;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.wine-card-meta-label {
+    color: #8a7770;
+}
+
+.wine-card-meta-value {
+    color: #2d2421;
+    font-weight: 500;
+}
+
+.wine-card-block {
+    margin-top: 14px;
+}
+
+.wine-card-block-title {
+    margin-bottom: 5px;
+    color: #5d1717;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.wine-card-block-text {
+    color: #4a4a4a;
+    font-size: 14px;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.wine-card-link {
+    display: inline-block;
+    margin-top: 16px;
+    color: #8b1a1a;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.wine-card-link:hover {
+    text-decoration: underline;
+}
+
+.alternatives-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.result-message {
+    padding: 16px;
+    border-radius: 16px;
+    background: #f8f4f0;
+    color: #4a4a4a;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.result-message-error {
+    background: #fff0ee;
+    color: #8b1a1a;
+}
+
 /* Футер */
 .footer {
     text-align: center;
@@ -181,10 +290,6 @@ body {
     font-size: 13px;
     color: #999;
     letter-spacing: 0.3px;
-}
-
-.footer p span {
-    margin: 0 6px;
 }
 
 /* Адаптация для маленьких экранов */

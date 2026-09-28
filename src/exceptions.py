@@ -4,4 +4,3 @@ class QdrantCollectionNotFoundException(Exception):
 
 class OCRNotAvailableError(Exception):
     """PaddleOCR не установлен (опциональная зависимость) или не может быть загружен."""
-    pass

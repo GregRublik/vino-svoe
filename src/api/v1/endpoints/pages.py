@@ -1,6 +1,3 @@
-# todo эндпоинт выдающий страницу для фотопоиска
-
-
 from fastapi import APIRouter, Request
 
 from depends import templates

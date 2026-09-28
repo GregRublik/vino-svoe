@@ -28,6 +28,10 @@ class EmbeddingService:
 
     @property
     def device(self) -> str:
+        if settings.embedding_device != "auto":
+            return settings.embedding_device
+        if torch.cuda.is_available():
+            return "cuda"
         mps = getattr(torch.backends, "mps", None)
         if mps is not None and mps.is_available():
             return "mps"

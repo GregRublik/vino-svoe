@@ -1,0 +1,5 @@
+path: '/home/neimia/Рабочий стол/vino-svoe-main/data/yolo_ann/ultralytics_dataset'
+train: images/train
+val: images/val
+names:
+  0: bottle

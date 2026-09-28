@@ -22,12 +22,16 @@ sys.path.insert(0, str(SRC_DIR))
 from config import settings
 from repositories.qdrant import QdrantRepository
 from services.embedding import EmbeddingService
+from utils.catalog import find_catalog_record, index_catalog_photos, load_catalog
 from utils.ids import stable_int_id
+from utils.links import build_wine_link, extract_wine_slug
 
 REPO_ROOT = SRC_DIR.parent
 IMAGES_DIR = REPO_ROOT / "data" / "images"
 LINKS_PATH = REPO_ROOT / "data" / "embedings" / "wine_links.json"
+CATALOG_PATH = REPO_ROOT / "data" / "embedings" / "wine_catalog.json"
 BATCH_SIZE = 64
+IMAGE_EXTENSIONS = {".webp", ".jpg", ".jpeg", ".png"}
 
 
 def load_links() -> dict[str, str | None]:
@@ -57,9 +61,15 @@ async def get_indexed_filenames(repo: QdrantRepository, collection: str) -> set[
     return indexed
 
 
-async def main() -> None:
+async def main(rebuild: bool = False) -> None:
     links = load_links()
-    files = sorted(IMAGES_DIR.glob("*.webp"))
+    catalog = load_catalog(CATALOG_PATH)
+    catalog_photos = index_catalog_photos(catalog)
+    files = sorted(
+        path
+        for path in IMAGES_DIR.iterdir()
+        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+    )
     if not files:
         print(f"В '{IMAGES_DIR}' не найдено .webp файлов!")
         return
@@ -69,6 +79,8 @@ async def main() -> None:
     repo = QdrantRepository(AsyncQdrantClient(url=settings.qdrant_url))
 
     collection = settings.qdrant_collection_siglip2
+    if rebuild and await repo.collection_exists(collection):
+        await repo.client.delete_collection(collection_name=collection)
     await repo.create_collection(collection, dim)
 
     indexed = await get_indexed_filenames(repo, collection)
@@ -81,11 +93,22 @@ async def main() -> None:
     batch: list[PointStruct] = []
     for path in tqdm(pending, desc="Индексация"):
         vector = embedding_service.vectorize_photo(path.read_bytes())
+        catalog_record = find_catalog_record(catalog, path.name, catalog_photos)
+        catalog_slug = catalog_record.get("Slug") if catalog_record else None
+        link = links.get(path.name)
+        slug = catalog_slug or extract_wine_slug(
+            content={"filename": path.name},
+            link=link,
+        )
         batch.append(
             PointStruct(
                 id=stable_int_id(path.name),
                 vector=vector,
-                payload={"filename": path.name, "link": links.get(path.name)},
+                payload={
+                    "filename": path.name,
+                    "slug": slug,
+                    "link": link or build_wine_link(slug),
+                },
             )
         )
         if len(batch) >= BATCH_SIZE:
@@ -99,4 +122,13 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Пересоздать коллекцию визуальных векторов перед индексацией",
+    )
+    args = parser.parse_args()
+    asyncio.run(main(rebuild=args.rebuild))

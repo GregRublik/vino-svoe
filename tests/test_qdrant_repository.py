@@ -1,6 +1,6 @@
 import httpx
 import pytest
-from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.http.models.models import QueryResponse
 from qdrant_client.models import Distance, Filter, PointStruct, ScoredPoint
 
@@ -34,7 +34,7 @@ class FakeClient:
         self.existing = set()
         self.create_calls = []
         self.upsert_calls = []
-        self.ping_ok = True
+        self.point_count = 0
 
     async def query_points(self, **kwargs):
         self.query_log.append(kwargs)
@@ -55,10 +55,8 @@ class FakeClient:
     async def upsert(self, collection_name, points):
         self.upsert_calls.append((collection_name, points))
 
-    async def get_collections(self):
-        if not self.ping_ok:
-            raise ResponseHandlingException("connection failed")
-        return {"collections": []}
+    async def count(self, collection_name, exact):
+        return type("CountResponse", (), {"count": self.point_count})()
 
 
 @pytest.fixture
@@ -114,6 +112,25 @@ async def test_search_maps_points_to_search_results(repo, client):
     assert result.link == "https://vino-svoe.ru/wines/x"
 
 
+async def test_search_builds_link_from_canonical_filename(repo, client):
+    client.responses.append(
+        QueryResponse(
+            points=[
+                ScoredPoint(
+                    id=8,
+                    version=0,
+                    score=0.8,
+                    payload={"filename": "abrau-dyurso.webp"},
+                )
+            ]
+        )
+    )
+
+    results = await repo.search(VectorSearchRequest(vector=[0.1], top_k=5, collection="c"))
+
+    assert results[0].link == "https://vino-svoe.ru/wines/abrau-dyurso"
+
+
 async def test_search_point_without_payload(repo, client):
     client.responses.append(QueryResponse(points=[ScoredPoint(id=7, version=0, score=0.5)]))
     results = await repo.search(VectorSearchRequest(vector=[0.1], top_k=5, collection="c"))
@@ -140,6 +157,12 @@ async def test_collection_exists(repo, client):
     assert await repo.collection_exists("b") is False
 
 
+async def test_count_returns_exact_point_count(repo, client):
+    client.point_count = 42
+
+    assert await repo.count("c") == 42
+
+
 async def test_create_collection_skips_when_exists(repo, client):
     client.existing.add("c")
     await repo.create_collection("c", 1024)
@@ -158,12 +181,3 @@ async def test_upsert_passes_points(repo, client):
     points = [PointStruct(id=1, vector=[0.1, 0.2], payload={"link": "https://..."})]
     await repo.upsert("c", points)
     assert client.upsert_calls == [("c", points)]
-
-
-async def test_ping_ok(repo):
-    assert await repo.ping() is True
-
-
-async def test_ping_failure(repo, client):
-    client.ping_ok = False
-    assert await repo.ping() is False

@@ -1,5 +1,5 @@
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import (
     Distance,
     FieldCondition,
@@ -11,6 +11,7 @@ from qdrant_client.models import (
 
 from exceptions import QdrantCollectionNotFoundException
 from schemas.search import SearchResult, VectorSearchRequest
+from utils.links import build_wine_link, extract_wine_slug
 
 
 class QdrantRepository:
@@ -22,13 +23,6 @@ class QdrantRepository:
     def _is_collection_not_found(error: UnexpectedResponse) -> bool:
         content = error.content.decode() if isinstance(error.content, bytes) else str(error.content)
         return "doesn't exist" in content
-
-    async def ping(self) -> bool:
-        try:
-            await self.client.get_collections()
-            return True
-        except ResponseHandlingException:
-            return False
 
     async def search(self, payload: VectorSearchRequest) -> list[SearchResult]:
         try:
@@ -52,16 +46,24 @@ class QdrantRepository:
                 limit=payload.top_k,
             )
 
-            return [
-                SearchResult(
-                    id=point.id,
-                    score=point.score,
-                    content=point.payload or {},
-                    metadata=point.payload or {},
-                    link=(point.payload or {}).get("link"),
+            results = []
+            for point in response.points:
+                point_payload = point.payload or {}
+                slug = extract_wine_slug(
+                    content=point_payload,
+                    metadata=point_payload,
+                    link=point_payload.get("link"),
                 )
-                for point in response.points
-            ]
+                results.append(
+                    SearchResult(
+                        id=point.id,
+                        score=point.score,
+                        content=point_payload,
+                        metadata=point_payload,
+                        link=point_payload.get("link") or build_wine_link(slug),
+                    )
+                )
+            return results
 
         except UnexpectedResponse as e:
             if self._is_collection_not_found(e):
@@ -72,6 +74,11 @@ class QdrantRepository:
 
     async def collection_exists(self, name: str) -> bool:
         return await self.client.collection_exists(collection_name=name)
+
+    async def count(self, collection: str) -> int:
+        """Возвращает точное число точек в коллекции."""
+        response = await self.client.count(collection_name=collection, exact=True)
+        return int(response.count)
 
     async def create_collection(self, name: str, dim: int) -> None:
         """Создаёт коллекцию с косинусной метрикой, если её ещё нет (идемпотентно)."""

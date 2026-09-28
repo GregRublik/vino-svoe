@@ -2,7 +2,6 @@
 
 {% block head %}
 <title>Главная страница</title>
-<link rel="stylesheet" href="/static/css/styles.css">
 <link rel="stylesheet" href="/static/css/camera.css">
 {% endblock head %}
 
@@ -47,6 +46,11 @@
         <!-- Кнопка распознавания -->
         <button class="btn btn-recognize" id="recognizeBtn">Распознать вино</button>
 
+        <!-- Результат поиска и карточка вина -->
+        <section class="result-section" id="resultSection" aria-live="polite" hidden>
+            <div id="resultContent"></div>
+        </section>
+
         <!-- Футер -->
         <footer class="footer">
             <p>Свое Вино · 18+ · О проекте</p>
@@ -77,4 +81,3 @@
 </div>
 <script src="/static/js/camera.js"></script>
 {% endblock body %}
-

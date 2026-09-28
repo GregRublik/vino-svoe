@@ -92,7 +92,7 @@ def patch_transformers(monkeypatch):
 
 
 def test_lazy_load_models_not_loaded_on_init():
-    service = EmbeddingService()
+    EmbeddingService()
     assert FakeSiglipModel.instances == []
     assert FakeTextModel.loaded is False
 
@@ -132,11 +132,19 @@ def test_vectorize_text_lazy_load_and_normalize(webp_bytes):
 
 
 def test_device_mps_when_available(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     monkeypatch.setattr(torch.backends, "mps", SimpleNamespace(is_available=lambda: True))
     assert EmbeddingService().device == "mps"
 
 
+def test_device_cuda_when_available(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.backends, "mps", SimpleNamespace(is_available=lambda: False))
+    assert EmbeddingService().device == "cuda"
+
+
 def test_device_cpu_when_mps_unavailable(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     monkeypatch.setattr(torch.backends, "mps", SimpleNamespace(is_available=lambda: False))
     assert EmbeddingService().device == "cpu"
 
