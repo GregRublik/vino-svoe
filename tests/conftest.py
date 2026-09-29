@@ -3,6 +3,7 @@ import io
 import pytest
 from PIL import Image
 
+
 def make_webp_bytes(size=(64, 64), color=(255, 0, 0)) -> bytes:
     """Создаёт in-memory WEBP-изображение (без записи на диск)."""
     buf = io.BytesIO()
@@ -23,9 +24,9 @@ class FakeFile:
         self.filename = filename
         self.read_count = 0
 
-    async def read(self) -> bytes:
+    async def read(self, size: int = -1) -> bytes:
         self.read_count += 1
-        return self.data
+        return self.data if size < 0 else self.data[:size]
 
 
 @pytest.fixture

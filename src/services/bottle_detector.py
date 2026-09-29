@@ -1,13 +1,12 @@
 """Подготовка фото для поиска: выделение бутылки моделью YOLO."""
 
-from dataclasses import dataclass
 import io
 import logging
-from pathlib import Path
+from dataclasses import dataclass
 
 from PIL import Image, ImageOps
 
-from config import settings
+from config import resolve_project_path, settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +16,6 @@ class PreparedImage:
     """Изображение, которое будет передано в SigLIP и OCR."""
 
     data: bytes
-    detected: bool
-    detections: int
-    confidence: float | None = None
 
 
 class BottleDetectionService:
@@ -61,18 +57,14 @@ class BottleDetectionService:
         if self._model is not None:
             return self._model
 
-        model_path = Path(settings.yolo_model_path)
-        if not model_path.is_absolute():
-            model_path = Path.cwd() / model_path
+        model_path = resolve_project_path(settings.yolo_model_path)
         if not model_path.is_file():
-            raise FileNotFoundError(f"YOLO-модель не найдена: {model_path}")
+            raise FileNotFoundError("YOLO-модель не найдена")
 
         try:
             from ultralytics import YOLO
         except ImportError as exc:
-            raise RuntimeError(
-                "ultralytics не установлен. Выполните: uv sync"
-            ) from exc
+            raise RuntimeError("ultralytics не установлен. Выполните: uv sync") from exc
 
         self._model = YOLO(str(model_path))
         return self._model
@@ -85,9 +77,9 @@ class BottleDetectionService:
 
     def _fallback(self, data: bytes, reason: Exception | None = None) -> PreparedImage:
         if reason is not None and not self._warning_logged:
-            logger.warning("YOLO недоступен, используется исходное фото: %s", reason)
+            logger.warning("YOLO недоступен, используется исходное фото")
             self._warning_logged = True
-        return PreparedImage(data=data, detected=False, detections=0)
+        return PreparedImage(data=data)
 
     def prepare(self, data: bytes) -> PreparedImage:
         """Возвращает crop самой уверенной бутылки или исходное фото."""
@@ -137,7 +129,4 @@ class BottleDetectionService:
         crop = image.crop(crop_box)
         return PreparedImage(
             data=self._encode(crop),
-            detected=True,
-            detections=count,
-            confidence=float(confidences[best_index]),
         )

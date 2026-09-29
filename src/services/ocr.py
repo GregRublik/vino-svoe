@@ -15,6 +15,8 @@ class OCRText(str):
     сторонами: объект можно передавать в текстовый encoder как обычную строку.
     """
 
+    confidence: float | None
+
     def __new__(cls, value: str = "", confidence: float | None = None):
         result = super().__new__(cls, value)
         result.confidence = confidence

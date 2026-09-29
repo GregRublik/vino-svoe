@@ -1,5 +1,5 @@
 # docker-compose.yml
-# Запуск API и Qdrant.
+# Запуск API, Qdrant и PostgreSQL.
 
 services:
   api:
@@ -7,28 +7,46 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PYTORCH_VERSION: ${PYTORCH_VERSION:-2.8.0+cu126}
+        TORCHVISION_VERSION: ${TORCHVISION_VERSION:-0.23.0+cu126}
+        PADDLE_VERSION: ${PADDLE_VERSION:-3.3.0}
     ports:
       - "8000:8000"
     environment:
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       APP_QDRANT_URL: http://qdrant:6333
+      APP_CATALOG_PATH: ${APP_CATALOG_PATH:-data/embedings/wine_catalog.json}
+      APP_LINKS_PATH: ${APP_LINKS_PATH:-data/embedings/wine_links.json}
+      APP_IMAGES_PATH: ${APP_IMAGES_PATH:-data/images}
+      APP_YOLO_MODEL_PATH: ${APP_YOLO_MODEL_PATH:-/app/models/bottle_yolo26n.pt}
+      APP_CATALOG_REIMPORT: ${APP_CATALOG_REIMPORT:-false}
+      APP_DATABASE_URL: ${APP_DATABASE_URL:-postgresql+psycopg://wine:wine_password@postgres:5432/vino_svoe}
       APP_EMBEDDING_DEVICE: ${APP_EMBEDDING_DEVICE:-auto}
       APP_YOLO_DEVICE: ${APP_YOLO_DEVICE:-auto}
       APP_OCR_DEVICE: ${APP_OCR_DEVICE:-auto}
       APP_OCR_ENABLED: ${APP_OCR_ENABLED:-true}
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
     volumes:
       - ./data:/app/data:ro
-      - huggingface-cache:/root/.cache/huggingface
-      - paddle-cache:/root/.paddlex
     depends_on:
       qdrant:
         condition: service_started
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     shm_size: 2gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   postgres:
-    profiles: ["catalog"]
     image: postgres:16
     environment:
       POSTGRES_USER: ${DB_USER:-wine}
@@ -36,7 +54,7 @@ services:
       POSTGRES_DB: ${DB_NAME:-vino_svoe}
       POSTGRES_HOST_AUTH_METHOD: scram-sha-256
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - vs-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -48,8 +66,8 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.19.0
     ports:
-      - "6333:6333"   # HTTP API
-      - "6334:6334"   # gRPC
+      - "127.0.0.1:6333:6333"   # HTTP API для локальной индексации
+      - "127.0.0.1:6334:6334"   # gRPC для локальной индексации
     volumes:
       - vs-qdrant-data:/qdrant/storage
     restart: unless-stopped
@@ -57,5 +75,3 @@ services:
 volumes:
   vs-postgres-data:
   vs-qdrant-data:
-  huggingface-cache:
-  paddle-cache:

@@ -3,7 +3,11 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from config import settings
-from exceptions import QdrantCollectionNotFoundException
+from exceptions import (
+    InvalidImageError,
+    PhotoTooLargeError,
+    QdrantCollectionNotFoundException,
+)
 from schemas.search import SearchResult
 from services.bottle_detector import PreparedImage
 from services.ocr import OCRText
@@ -12,7 +16,9 @@ from services.retrieval import RetrievalService
 LINK = "https://vino-svoe.ru/wines/abrau-dyurso"
 
 
-def make_result(doc_id: int, score: float = 0.9, link: str | None = LINK) -> SearchResult:
+def make_result(
+    doc_id: int, score: float = 0.9, link: str | None = LINK
+) -> SearchResult:
     return SearchResult(
         id=doc_id,
         score=score,
@@ -85,9 +91,6 @@ async def test_detector_crop_is_used_for_visual_search_and_ocr(
     detector.prepare = Mock(
         return_value=PreparedImage(
             data=cropped,
-            detected=True,
-            detections=2,
-            confidence=0.9,
         )
     )
     qdrant_repo.search = AsyncMock(side_effect=[[make_result(1)], [make_result(1)]])
@@ -230,9 +233,7 @@ async def test_ocr_match_confirms_candidate(
         }
     )
     qdrant_repo.search = AsyncMock(side_effect=[[candidate], [candidate]])
-    ocr_service.text_detection_on_file = AsyncMock(
-        return_value="Абрау Дюрсо шардоне"
-    )
+    ocr_service.text_detection_on_file = AsyncMock(return_value="Абрау Дюрсо шардоне")
     service = make_service(qdrant_repo, embedding_service, ocr_service)
 
     response = await service.find_by_photo(make_fake_file(webp_bytes))
@@ -309,7 +310,12 @@ async def test_equal_ocr_matches_keep_stronger_visual_candidate(
     qdrant_repo.search = AsyncMock(
         side_effect=[
             [visual_top1, visual_competitor],
-            [visual_competitor, ocr_filler, ocr_filler.model_copy(update={"id": 4}), visual_top1],
+            [
+                visual_competitor,
+                ocr_filler,
+                ocr_filler.model_copy(update={"id": 4}),
+                visual_top1,
+            ],
         ]
     )
     ocr_service.text_detection_on_file = AsyncMock(
@@ -455,6 +461,37 @@ async def test_file_read_exactly_once(
 
     assert file.read_count == 1
     embedding_service.vectorize_photo.assert_called_once_with(webp_bytes)
+
+
+async def test_rejects_oversized_file(
+    qdrant_repo,
+    embedding_service,
+    ocr_service,
+    webp_bytes,
+    make_fake_file,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "max_upload_size_bytes", 4)
+    service = make_service(qdrant_repo, embedding_service, ocr_service)
+
+    with pytest.raises(PhotoTooLargeError):
+        await service.find_by_photo(make_fake_file(webp_bytes))
+
+    embedding_service.vectorize_photo.assert_not_called()
+
+
+async def test_rejects_invalid_image_bytes(
+    qdrant_repo,
+    embedding_service,
+    ocr_service,
+    make_fake_file,
+):
+    service = make_service(qdrant_repo, embedding_service, ocr_service)
+
+    with pytest.raises(InvalidImageError):
+        await service.find_by_photo(make_fake_file(b"not an image"))
+
+    embedding_service.vectorize_photo.assert_not_called()
 
 
 async def test_top_k_threaded_to_both_searches(

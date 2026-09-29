@@ -25,19 +25,19 @@
                 или используйте камеру
             </p>
 
-            <!-- ГАЛЕРЕЯ (скрытый input) -->
+            <!-- Источник файла выбирает браузер; приложение не задаёт путь к проекту. -->
             <input 
                 type="file" 
-                accept="image/*" 
+                accept=".jpg,.jpeg,.png,.webp"
                 id="fileInput"
                 class="hidden-input"
             >
 
             <!-- Кнопки-триггеры -->
             <div class="button-group">
-                <label for="fileInput" class="btn btn-gallery">
+                <button type="button" class="btn btn-gallery" id="galleryBtn">
                     📂 Выбрать фото
-                </label>
+                </button>
             </div>
 
             <p class="file-types">JPG, PNG, WEBP</p>
@@ -79,5 +79,5 @@
         <button class="camera-btn camera-btn-capture" id="captureBtn">📸 Сфотографировать</button>
     </div>
 </div>
-<script src="/static/js/camera.js"></script>
+<script src="/static/js/camera.js?v=20260928-2"></script>
 {% endblock body %}

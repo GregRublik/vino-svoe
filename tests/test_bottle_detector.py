@@ -37,9 +37,6 @@ def test_prepare_chooses_box_with_highest_confidence(monkeypatch):
 
     prepared = BottleDetectionService(model=model).prepare(_image_bytes())
 
-    assert prepared.detected is True
-    assert prepared.detections == 2
-    assert prepared.confidence == 0.91
     cropped = Image.open(io.BytesIO(prepared.data)).convert("RGB")
     assert cropped.size == (40, 100)
     assert cropped.getpixel((20, 50)) == (0, 0, 255)
@@ -51,6 +48,4 @@ def test_prepare_falls_back_to_original_when_no_boxes():
 
     prepared = BottleDetectionService(model=model).prepare(_image_bytes())
 
-    assert prepared.detected is False
-    assert prepared.detections == 0
     assert prepared.data == _image_bytes()

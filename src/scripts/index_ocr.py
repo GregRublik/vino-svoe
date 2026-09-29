@@ -5,7 +5,7 @@
     uv run python src/scripts/index_ocr.py --filenames-only         # без OCR, каталог + имена
     uv run python src/scripts/index_ocr.py --filenames-only --rebuild
 
-Текст для векторизации — профиль товара из `wine_catalog.json` и, если включён,
+Текст для векторизации — профиль товара из PostgreSQL и, если включён,
 результат OCR фото. При отсутствии профиля используется имя файла. Векторизация
 та же, что и на стороне запроса (`EmbeddingService.vectorize_text`).
 Id точек — те же, что в `siglip2-vectors` (иначе RRF не сольёт списки по id).
@@ -15,7 +15,6 @@ Upsert идемпотентен, уже загруженные файлы про
 
 import argparse
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -26,30 +25,22 @@ from tqdm import tqdm
 SRC_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SRC_DIR))
 
-from config import settings
+from config import resolve_project_path, settings
+from repositories.catalog import WineCatalogRepository
 from repositories.qdrant import QdrantRepository
 from services.embedding import EmbeddingService
 from services.ocr import OCRService
-from utils.catalog import find_catalog_record, index_catalog_photos, load_catalog
+from utils.catalog import find_catalog_record, index_catalog_photos
 from utils.ids import stable_int_id
 from utils.links import build_wine_link, extract_wine_slug
 from utils.ocr_text import build_catalog_text, build_index_text
 
-REPO_ROOT = SRC_DIR.parent
-IMAGES_DIR = REPO_ROOT / "data" / "images"
-LINKS_PATH = REPO_ROOT / "data" / "embedings" / "wine_links.json"
-CATALOG_PATH = REPO_ROOT / "data" / "embedings" / "wine_catalog.json"
 BATCH_SIZE = 64
 IMAGE_EXTENSIONS = {".webp", ".jpg", ".jpeg", ".png"}
 
 
-def load_links() -> dict[str, str | None]:
-    with open(LINKS_PATH, encoding="utf-8") as f:
-        return json.load(f)
-
-
 def catalog_only_records(
-    files: list[Path], catalog: dict[str, dict], links: dict[str, str | None]
+    files: list[Path], catalog: dict[str, dict]
 ) -> list[tuple[str, dict, str, str]]:
     """Возвращает карточки каталога, для которых нет фото в локальном индексе.
 
@@ -67,7 +58,7 @@ def catalog_only_records(
             slug
             or extract_wine_slug(
                 content={"filename": path.name},
-                link=links.get(path.name),
+                link=record.get("link") if record else None,
             )
         )
     used_names = set(indexed_names)
@@ -77,7 +68,7 @@ def catalog_only_records(
         if slug in indexed_slugs:
             continue
 
-        source_filename = str(record.get("Название фото") or f"{slug}.webp").strip()
+        source_filename = (record.get("Название фото") or f"{slug}.webp").strip()
         point_filename = source_filename
         if point_filename in used_names:
             point_filename = f"{slug}.catalog"
@@ -110,17 +101,25 @@ async def get_indexed_filenames(repo: QdrantRepository, collection: str) -> set[
 
 
 async def main(filenames_only: bool = False, rebuild: bool = False) -> None:
-    links = load_links()
-    catalog = load_catalog(CATALOG_PATH)
+    images_dir = resolve_project_path(settings.images_path)
+    catalog_repository = WineCatalogRepository(settings.database_url)
+    try:
+        catalog = catalog_repository.get_records()
+    finally:
+        catalog_repository.close()
     catalog_photos = index_catalog_photos(catalog)
-    files = sorted(
-        path
-        for path in IMAGES_DIR.iterdir()
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+    files = (
+        sorted(
+            path
+            for path in images_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        )
+        if images_dir.is_dir()
+        else []
     )
-    catalog_records = catalog_only_records(files, catalog, links)
+    catalog_records = catalog_only_records(files, catalog)
     if not files and not catalog_records:
-        print(f"В '{IMAGES_DIR}' не найдено .webp файлов и каталог пуст!")
+        print("Каталог и каталог изображений пусты")
         return
 
     embedding_service = EmbeddingService()
@@ -135,9 +134,7 @@ async def main(filenames_only: bool = False, rebuild: bool = False) -> None:
 
     indexed = await get_indexed_filenames(repo, collection)
     pending = [p for p in files if p.name not in indexed]
-    pending_catalog = [
-        record for record in catalog_records if record[3] not in indexed
-    ]
+    pending_catalog = [record for record in catalog_records if record[3] not in indexed]
     print(
         f"Всего файлов: {len(files)}, "
         f"карточек без фото: {len(catalog_records)}, "
@@ -163,7 +160,7 @@ async def main(filenames_only: bool = False, rebuild: bool = False) -> None:
             stats["filename"] += 1
 
         vector = embedding_service.vectorize_text(text)
-        link = links.get(path.name)
+        link = catalog_record.get("link") if catalog_record else None
         slug = (
             catalog_record.get("Slug")
             if catalog_record
@@ -191,7 +188,7 @@ async def main(filenames_only: bool = False, rebuild: bool = False) -> None:
         catalog_text = build_catalog_text(record)
         text = build_index_text("", point_filename, catalog_text)
         vector = embedding_service.vectorize_text(text)
-        link = links.get(source_filename) or links.get(point_filename)
+        link = record.get("link")
         batch.append(
             PointStruct(
                 id=stable_int_id(point_filename),

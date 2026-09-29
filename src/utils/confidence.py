@@ -46,4 +46,3 @@ def calculate_match_confidence(
     total_weight = sum(weight for _, weight in components)
     confidence = sum(value * weight for value, weight in components) / total_weight
     return round(_clamp(confidence), 4)
-

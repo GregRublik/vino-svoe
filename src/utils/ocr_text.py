@@ -1,7 +1,7 @@
-from difflib import SequenceMatcher
-from pathlib import Path
 import re
-
+from difflib import SequenceMatcher
+from itertools import pairwise
+from pathlib import Path
 
 OCR_CONFUSABLES = str.maketrans(
     {
@@ -14,7 +14,7 @@ OCR_CONFUSABLES = str.maketrans(
         "M": "М",
         "O": "О",
         "P": "Р",
-        "R": "Л",
+        "R": "Р",
         "T": "Т",
         "X": "Х",
         "Y": "У",
@@ -27,7 +27,7 @@ OCR_CONFUSABLES = str.maketrans(
         "m": "м",
         "o": "о",
         "p": "р",
-        "r": "л",
+        "r": "р",
         "t": "т",
         "x": "х",
         "y": "у",
@@ -113,16 +113,31 @@ def _normalized_tokens(text: str) -> set[str]:
     tokens = {
         token
         for token in raw_tokens
-        if (
-            len(token) >= 5 or (token.isdigit() and len(token) >= 4)
-        )
+        if (len(token) >= 5 or (token.isdigit() and len(token) >= 4))
         and token not in OCR_STOP_WORDS
     }
+
+    # Для отдельных OCR-ошибок вроде ``Mepre`` сохраняем дополнительный
+    # вариант: латинская ``r`` иногда распознаётся вместо кириллической ``л``.
+    # Это не меняет основное исправление R/r -> Р/р и не превращает каждую
+    # латинскую букву R в Л.
+    for source_token in re.findall(r"[А-Яа-яA-Za-z0-9]+", text):
+        if not any(char in "Rr" for char in source_token):
+            continue
+        translated = source_token.translate(OCR_CONFUSABLES).upper().replace("Ё", "Е")
+        for index, char in enumerate(source_token):
+            if char not in "Rr":
+                continue
+            variant_chars = list(translated)
+            variant_chars[index] = "Л"
+            variant = "".join(variant_chars)
+            if len(variant) >= 5 and variant not in OCR_STOP_WORDS:
+                tokens.add(variant)
 
     # OCR often merges a compound name ("ПиноHуар"), while the catalog keeps
     # its words separate ("Пино Нуар"). Keep adjacent-word compounds in both
     # representations so the lexical stage can compare them consistently.
-    for left, right in zip(raw_tokens, raw_tokens[1:]):
+    for left, right in pairwise(raw_tokens):
         if (
             left not in OCR_STOP_WORDS
             and right not in OCR_STOP_WORDS
@@ -163,17 +178,22 @@ def ocr_catalog_match_score(query: str, catalog_text: str) -> int:
     """Считает совпавшие значимые слова OCR и профиля товара."""
     query_tokens = _ocr_tokens(query)
     catalog_tokens = _catalog_tokens(catalog_text)
-    score = 0
-    for query_token in query_tokens:
-        if query_token in catalog_tokens:
-            score += 1
-            continue
+    exact_matches = query_tokens & catalog_tokens
+    score = len(exact_matches)
+    for query_token in query_tokens - exact_matches:
         if any(
             len(query_token) >= 5
             and abs(len(query_token) - len(catalog_token)) <= 2
             and SequenceMatcher(None, query_token, catalog_token).ratio() >= 0.80
             for catalog_token in catalog_tokens
         ):
+            # Альтернативная OCR-нормализация одного слова не должна
+            # считаться вторым совпадением, если основной вариант уже совпал.
+            if any(
+                SequenceMatcher(None, query_token, exact_token).ratio() >= 0.80
+                for exact_token in exact_matches
+            ):
+                continue
             score += 1
     return score
 

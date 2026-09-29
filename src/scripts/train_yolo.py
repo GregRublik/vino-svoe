@@ -1,14 +1,15 @@
 """Подготовка разметки CVAT и обучение YOLO26n на бутылках.
 
 Запуск из корня репозитория:
-    uv run python src/scripts/train_yolo.py
+    uv run python src/scripts/train_yolo.py --images-dir /path/to/images
 
-По умолчанию используются 60 размеченных кадров из ``Датасет/Реальные фото``.
-Скрипт делает воспроизводимое train/val-разбиение и не изменяет исходную
-разметку CVAT.
+Путь к исходным изображениям передаётся явно, поэтому скрипт не зависит от
+названия папки или расположения конкретного проекта. Он делает воспроизводимое
+train/val-разбиение и не изменяет исходную разметку CVAT.
 """
 
 import argparse
+import os
 import random
 import shutil
 import sys
@@ -18,7 +19,6 @@ SRC_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SRC_DIR))
 
 REPO_ROOT = SRC_DIR.parent
-DEFAULT_IMAGES_DIR = REPO_ROOT / "Датасет" / "Реальные фото"
 DEFAULT_ANNOTATIONS_DIR = REPO_ROOT / "data" / "yolo_ann" / "obj_train_data"
 DEFAULT_DATASET_DIR = REPO_ROOT / "data" / "yolo_ann" / "ultralytics_dataset"
 
@@ -55,19 +55,11 @@ def _link_or_copy(source: Path, target: Path) -> None:
 
 
 def _write_dataset_yaml(dataset_dir: Path) -> Path:
-    root = dataset_dir.resolve().as_posix().replace("'", "''")
     path = dataset_dir / "dataset.yaml"
     path.write_text(
-        "\n".join(
-            [
-                f"path: '{root}'",
-                "train: images/train",
-                "val: images/val",
-                "names:",
-                "  0: bottle",
-                "",
-            ]
-        ),
+        # YAML лежит внутри dataset_dir, поэтому относительный путь
+        # делает датасет переносимым между хостом и Docker.
+        "path: .\ntrain: images/train\nval: images/val\nnames:\n  0: bottle\n",
         encoding="utf-8",
     )
     return path
@@ -89,7 +81,8 @@ def prepare_dataset(
         for annotation_path in annotation_files
         for image_path in [_image_for_stem(images_dir, annotation_path.stem)]
     ]
-    random.Random(seed).shuffle(pairs)
+    # Разбиение воспроизводимое, криптографическая случайность здесь не нужна.
+    random.Random(seed).shuffle(pairs)  # nosec B311
     val_count = max(1, round(len(pairs) * val_ratio))
     val_pairs = pairs[:val_count]
     train_pairs = pairs[val_count:]
@@ -106,7 +99,11 @@ def prepare_dataset(
 
     dataset_yaml = _write_dataset_yaml(dataset_dir)
     box_count = sum(
-        sum(1 for line in annotation_path.read_text(encoding="utf-8").splitlines() if line.strip())
+        sum(
+            1
+            for line in annotation_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        )
         for _, annotation_path in pairs
     )
     return dataset_yaml, len(train_pairs), len(val_pairs), box_count
@@ -136,10 +133,7 @@ def main(args: argparse.Namespace) -> None:
         val_ratio=args.val_ratio,
         seed=args.seed,
     )
-    print(
-        f"Разметка: {train_count} train, {val_count} val, "
-        f"всего рамок: {box_count}"
-    )
+    print(f"Разметка: {train_count} train, {val_count} val, всего рамок: {box_count}")
 
     model = YOLO(args.model)
     model.train(
@@ -165,10 +159,21 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--images-dir", type=Path, default=DEFAULT_IMAGES_DIR)
+    parser.add_argument(
+        "--images-dir",
+        type=Path,
+        default=(
+            Path(os.environ["YOLO_IMAGES_DIR"]).expanduser()
+            if os.environ.get("YOLO_IMAGES_DIR")
+            else None
+        ),
+        help="Каталог исходных изображений (или переменная YOLO_IMAGES_DIR)",
+    )
     parser.add_argument("--annotations-dir", type=Path, default=DEFAULT_ANNOTATIONS_DIR)
     parser.add_argument("--dataset-dir", type=Path, default=DEFAULT_DATASET_DIR)
-    parser.add_argument("--project", type=Path, default=REPO_ROOT / "data" / "yolo_ann" / "runs")
+    parser.add_argument(
+        "--project", type=Path, default=REPO_ROOT / "data" / "yolo_ann" / "runs"
+    )
     parser.add_argument("--name", default="bottle_yolo26n")
     parser.add_argument("--model", default="yolo26n.pt")
     parser.add_argument("--epochs", type=int, default=80)
@@ -179,4 +184,7 @@ if __name__ == "__main__":
     parser.add_argument("--val-ratio", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default="auto")
-    main(parser.parse_args())
+    args = parser.parse_args()
+    if args.images_dir is None:
+        parser.error("укажите --images-dir или задайте YOLO_IMAGES_DIR")
+    main(args)

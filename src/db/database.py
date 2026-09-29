@@ -1,0 +1,7 @@
+"""Общие SQLAlchemy-метаданные для приложения и Alembic."""
+
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    """Базовый класс ORM-моделей проекта."""

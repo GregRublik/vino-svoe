@@ -31,4 +31,3 @@ def test_ocr_can_confirm_candidate_without_visual_score():
     )
 
     assert confidence == pytest.approx(1.0)
-

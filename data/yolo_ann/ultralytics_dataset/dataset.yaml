@@ -1,4 +1,4 @@
-path: '/home/neimia/Рабочий стол/vino-svoe-main/data/yolo_ann/ultralytics_dataset'
+path: .
 train: images/train
 val: images/val
 names:

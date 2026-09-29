@@ -1,17 +1,27 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
-from depends import get_retrieval_service
-from schemas.search import SearchResult
-from exceptions import QdrantCollectionNotFoundException
+from db.database import Base
+from db.models import WineCatalogRow
+from depends import get_retrieval_service, get_wine_catalog_repository
+from exceptions import (
+    InvalidImageError,
+    PhotoTooLargeError,
+    QdrantCollectionNotFoundException,
+)
 from main import app
-from schemas.search import SearchResponse
+from repositories.catalog import WineCatalogRepository
+from schemas.search import SearchResponse, SearchResult
 
-LINK = "https://vino-svoe.ru/wines/x"
+LINK = "https://vino-svoe.ru/wines/aligote-barrel-2024"
 
 
 class FakeRetrievalService:
-    def __init__(self, response: SearchResponse | None = None, error: Exception | None = None):
+    def __init__(
+        self, response: SearchResponse | None = None, error: Exception | None = None
+    ):
         self.response = response or SearchResponse(results=[])
         self.error = error
         self.calls = []
@@ -24,10 +34,28 @@ class FakeRetrievalService:
 
 
 @pytest.fixture
-def client():
+def client(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'catalog.db'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(
+            WineCatalogRow(
+                slug="aligote-barrel-2024",
+                name="Алиготе Баррель, 2024",
+                description="Описание Алиготе Баррель.",
+                link=LINK,
+            )
+        )
+        session.commit()
+    engine.dispose()
+
+    repository = WineCatalogRepository(database_url)
     app.dependency_overrides.clear()
-    with TestClient(app) as c:
+    app.dependency_overrides[get_wine_catalog_repository] = lambda: repository
+    with TestClient(app, raise_server_exceptions=False) as c:
         yield c
+    repository.close()
     app.dependency_overrides.clear()
 
 
@@ -35,7 +63,15 @@ def client():
 def override_service(client):
     fake = FakeRetrievalService(
         response=SearchResponse(
-            results=[SearchResult(id=1, score=0.5, content={}, metadata={}, link=LINK)]
+            results=[
+                SearchResult(
+                    id=1,
+                    score=0.5,
+                    content={"slug": "aligote-barrel-2024"},
+                    metadata={},
+                    link=LINK,
+                )
+            ]
         )
     )
     app.dependency_overrides[get_retrieval_service] = lambda: fake
@@ -58,6 +94,18 @@ def test_search_default_top_k_is_five(client, override_service, webp_bytes):
     resp = client.post("/search", files={"photo": ("w.webp", webp_bytes, "image/webp")})
     assert resp.status_code == 200
     assert override_service.calls == [("w.webp", 5)]
+
+
+@pytest.mark.parametrize("top_k", ["0", "101"])
+def test_search_rejects_invalid_top_k(client, override_service, webp_bytes, top_k):
+    resp = client.post(
+        "/search",
+        files={"photo": ("w.webp", webp_bytes, "image/webp")},
+        data={"top_k": top_k},
+    )
+
+    assert resp.status_code == 422
+    assert override_service.calls == []
 
 
 def test_search_includes_wine_card_with_description(client, webp_bytes):
@@ -131,42 +179,30 @@ def test_search_503_when_collection_missing(client, webp_bytes):
     assert "detail" in resp.json()
 
 
-def test_eval_predict_returns_tz_slug(client, override_service, webp_bytes):
-    resp = client.post(
-        "/v1/eval/predict",
-        files={"image": ("w.webp", webp_bytes, "image/webp")},
-    )
-
-    assert resp.status_code == 200
-    assert resp.json() == {"slug": "x"}
-    assert override_service.calls == [("w.webp", 5)]
-
-
-def test_eval_predict_returns_404_without_results(client, webp_bytes):
-    fake = FakeRetrievalService(response=SearchResponse(results=[]))
-    app.dependency_overrides[get_retrieval_service] = lambda: fake
-
-    resp = client.post(
-        "/v1/eval/predict",
-        files={"image": ("w.webp", webp_bytes, "image/webp")},
-    )
-
-    assert resp.status_code == 404
-
-
-def test_eval_predict_does_not_return_low_confidence_slug(client, webp_bytes):
+def test_search_hides_unexpected_file_paths(client, webp_bytes):
     fake = FakeRetrievalService(
-        response=SearchResponse(
-            results=[SearchResult(id=1, score=0.69, content={}, metadata={}, link=LINK)],
-            found=False,
-            confidence=0.31,
-        )
+        error=FileNotFoundError("/home/user/project/data/model.pt")
     )
     app.dependency_overrides[get_retrieval_service] = lambda: fake
 
+    resp = client.post("/search", files={"photo": ("w.webp", webp_bytes, "image/webp")})
+
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": "Не удалось обработать изображение"}
+    assert "/home/user/project" not in resp.text
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code"),
+    [(PhotoTooLargeError(), 413), (InvalidImageError(), 400)],
+)
+def test_search_maps_processing_errors(client, webp_bytes, error, status_code):
+    fake = FakeRetrievalService(error=error)
+    app.dependency_overrides[get_retrieval_service] = lambda: fake
+
     resp = client.post(
-        "/v1/eval/predict",
-        files={"image": ("w.webp", webp_bytes, "image/webp")},
+        "/search",
+        files={"photo": ("w.webp", webp_bytes, "image/webp")},
     )
 
-    assert resp.status_code == 404
+    assert resp.status_code == status_code

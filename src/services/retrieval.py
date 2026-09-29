@@ -1,11 +1,13 @@
 import asyncio
+import io
 
 from fastapi import UploadFile
+from PIL import Image, UnidentifiedImageError
 
 from config import settings
-from exceptions import OCRNotAvailableError
+from exceptions import InvalidImageError, OCRNotAvailableError, PhotoTooLargeError
 from repositories.qdrant import QdrantRepository
-from schemas.search import SearchResponse, VectorSearchRequest
+from schemas.search import SearchResponse, SearchResultId, VectorSearchRequest
 from services.bottle_detector import BottleDetectionService
 from services.embedding import EmbeddingService
 from services.ocr import OCRService
@@ -15,7 +17,6 @@ from utils.ocr_text import ocr_result_match_score, rank_ocr_results
 
 
 class RetrievalService:
-
     def __init__(
         self,
         qdrant_repository: QdrantRepository,
@@ -33,7 +34,7 @@ class RetrievalService:
         results,
         top_k: int,
         visual_results,
-        lexical_scores: dict[int, int],
+        lexical_scores: dict[SearchResultId, int],
     ) -> SearchResponse:
         candidates = results[:top_k]
         if not candidates:
@@ -85,7 +86,15 @@ class RetrievalService:
 
     async def find_by_photo(self, file: UploadFile, top_k: int = 5) -> SearchResponse:
         """Поиск вина по фото: SigLIP2 (+ OCR, когда коллекция проиндексирована) → RRF."""
-        data = await file.read()
+        data = await file.read(settings.max_upload_size_bytes + 1)
+        if len(data) > settings.max_upload_size_bytes:
+            raise PhotoTooLargeError
+        try:
+            with Image.open(io.BytesIO(data)) as image:
+                image.verify()
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            raise InvalidImageError from exc
+
         prepared_data = data
         if self.bottle_detector is not None and settings.yolo_enabled:
             prepared_data = (
@@ -97,24 +106,28 @@ class RetrievalService:
         photo_vector = await asyncio.to_thread(
             self.embedding_service.vectorize_photo, prepared_data
         )
-        siglip_results = await self.qdrant_repository.search( # ищем в коллекции siglip2
-            VectorSearchRequest(
-                vector=photo_vector,
-                top_k=candidate_k,
-                collection=settings.qdrant_collection_siglip2,
+        siglip_results = (
+            await self.qdrant_repository.search(  # ищем в коллекции siglip2
+                VectorSearchRequest(
+                    vector=photo_vector,
+                    top_k=candidate_k,
+                    collection=settings.qdrant_collection_siglip2,
+                )
             )
         )
         if not siglip_results:
             return self._build_response([], top_k, [], {})
 
         ranked_lists = [siglip_results]
-        lexical_scores: dict[int, int] = {}
+        lexical_scores: dict[SearchResultId, int] = {}
 
         if settings.ocr_enabled and await self.qdrant_repository.collection_exists(
             settings.qdrant_collection_ocr
         ):
             try:
-                ocr_result = await self.ocr_service.text_detection_on_file(prepared_data)
+                ocr_result = await self.ocr_service.text_detection_on_file(
+                    prepared_data
+                )
             except OCRNotAvailableError:
                 ocr_text = ""
             else:
@@ -132,9 +145,7 @@ class RetrievalService:
                 ocr_candidate_k = max(
                     candidate_k,
                     settings.retrieval_ocr_candidate_k,
-                    await self.qdrant_repository.count(
-                        settings.qdrant_collection_ocr
-                    ),
+                    await self.qdrant_repository.count(settings.qdrant_collection_ocr),
                 )
                 ocr_results = await self.qdrant_repository.search(
                     VectorSearchRequest(
@@ -152,7 +163,10 @@ class RetrievalService:
                         result.id: ocr_result_match_score(result, ocr_text)
                         for result in ocr_results
                     }
-                    if max(lexical_scores.values(), default=0) >= settings.retrieval_min_ocr_matches:
+                    if (
+                        max(lexical_scores.values(), default=0)
+                        >= settings.retrieval_min_ocr_matches
+                    ):
                         lexical_results = rank_ocr_results(ocr_results, ocr_text)
                         ranked_lists.append(lexical_results)
 

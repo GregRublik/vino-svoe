@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request
 
 from depends import templates
 
-
 router = APIRouter()
+
 
 @router.get("/", tags=["pages"])
 async def index(
