@@ -19,5 +19,7 @@ class WineCatalogRow(Base):
     category: Mapped[str | None] = mapped_column(Text)
     color: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
+    roskachestvo_rating: Mapped[str | None] = mapped_column(Text)
+    serving_recommendation: Mapped[str | None] = mapped_column(Text)
     photo_name: Mapped[str | None] = mapped_column(Text)
     link: Mapped[str | None] = mapped_column(Text)

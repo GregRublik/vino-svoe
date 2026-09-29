@@ -84,6 +84,8 @@ def test_catalog_repository_builds_wine_card_from_database(tmp_path):
             category="Белое",
             color="Золотистый",
             description="Свежий и минеральный вкус.",
+            roskachestvo_rating="4,8",
+            serving_recommendation="Рыба и морепродукты.",
             photo_name="new-wine-2026.webp",
             link="https://vino-svoe.ru/wines/new-wine-2026",
         ),
@@ -93,6 +95,8 @@ def test_catalog_repository_builds_wine_card_from_database(tmp_path):
 
     assert card.name == "Новое вино"
     assert card.description == "Свежий и минеральный вкус."
+    assert card.roskachestvo_rating == "4,8"
+    assert card.serving_recommendation == "Рыба и морепродукты."
     assert card.link == "https://vino-svoe.ru/wines/new-wine-2026"
     repository.close()
 
@@ -130,6 +134,8 @@ def test_catalog_repository_reads_card_after_reopening_database(tmp_path):
 
     assert card.name == "Вино из базы"
     assert card.description == "Карточка загружена в SQLAlchemy."
+    assert card.roskachestvo_rating is None
+    assert card.serving_recommendation is None
     reopened.close()
 
 
@@ -143,6 +149,8 @@ def test_catalog_repository_replaces_and_reads_imported_records(tmp_path):
                 "Название вина": "Импортированное вино",
                 "Название фото": r"archive\\labels\\imported.webp",
                 "Описание": "Импортировано в PostgreSQL.",
+                "Рейтинг Роскачества": "Высокое качество",
+                "Рекомендации к подаче": "Морепродукты.",
             }
         },
         {"imported.webp": "https://vino-svoe.ru/wines/imported-wine"},
@@ -153,6 +161,8 @@ def test_catalog_repository_replaces_and_reads_imported_records(tmp_path):
     assert record["Название фото"] == r"archive\\labels\\imported.webp"
     assert record["link"] == "https://vino-svoe.ru/wines/imported-wine"
     assert record["Описание"] == "Импортировано в PostgreSQL."
+    assert record["Рейтинг Роскачества"] == "Высокое качество"
+    assert record["Рекомендации к подаче"] == "Морепродукты."
     repository.close()
 
 

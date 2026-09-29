@@ -259,6 +259,36 @@ body {
     text-decoration: underline;
 }
 
+.pairing-button {
+    display: block;
+    margin-top: 16px;
+    padding: 11px 16px;
+    border: 1px solid #b22222;
+    border-radius: 28px;
+    background: #fff;
+    color: #8b1a1a;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pairing-button:hover:not(:disabled) {
+    background: #fff0ee;
+}
+
+.pairing-button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+.pairing-rationale {
+    margin-top: 8px;
+    color: #8a7770;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
 .alternatives-grid {
     display: grid;
     gap: 12px;

@@ -12,3 +12,4 @@ wheels/
 .DS_Store
 .idea
 .env
+data/images

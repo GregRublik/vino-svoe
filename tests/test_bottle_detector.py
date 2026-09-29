@@ -27,7 +27,7 @@ def _image_bytes():
     return output.getvalue()
 
 
-def test_prepare_chooses_box_with_highest_confidence(monkeypatch):
+def test_prepare_chooses_box_with_highest_detection_score(monkeypatch):
     boxes = SimpleNamespace(
         conf=[0.55, 0.91],
         xyxy=[[0, 0, 30, 100], [60, 0, 100, 100]],
@@ -40,7 +40,7 @@ def test_prepare_chooses_box_with_highest_confidence(monkeypatch):
     cropped = Image.open(io.BytesIO(prepared.data)).convert("RGB")
     assert cropped.size == (40, 100)
     assert cropped.getpixel((20, 50)) == (0, 0, 255)
-    assert model.calls[0]["conf"] == settings.yolo_confidence
+    assert model.calls[0]["conf"] == settings.yolo_detection_threshold
 
 
 def test_prepare_falls_back_to_original_when_no_boxes():

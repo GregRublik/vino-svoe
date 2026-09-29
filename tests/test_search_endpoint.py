@@ -44,6 +44,8 @@ def client(tmp_path):
                 slug="aligote-barrel-2024",
                 name="Алиготе Баррель, 2024",
                 description="Описание Алиготе Баррель.",
+                roskachestvo_rating="Высокое качество",
+                serving_recommendation="Рыба и молодые сыры.",
                 link=LINK,
             )
         )
@@ -85,8 +87,7 @@ def test_search_post_returns_results(client, override_service, webp_bytes):
         data={"top_k": "3"},
     )
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["results"][0]["link"] == LINK
+    assert resp.json() == {"slug": "aligote-barrel-2024"}
     assert override_service.calls == [("w.webp", 3)]
 
 
@@ -96,10 +97,43 @@ def test_search_default_top_k_is_five(client, override_service, webp_bytes):
     assert override_service.calls == [("w.webp", 5)]
 
 
+def test_case_holder_evaluator_contract_accepts_image(client, override_service, webp_bytes):
+    resp = client.post(
+        "/v1/eval/predict",
+        files={"image": ("w.webp", webp_bytes, "image/webp")},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"slug": "aligote-barrel-2024"}
+    assert override_service.calls == [("w.webp", 5)]
+
+
+def test_evaluator_returns_null_slug_for_empty_results(client, webp_bytes):
+    fake = FakeRetrievalService(response=SearchResponse(results=[]))
+    app.dependency_overrides[get_retrieval_service] = lambda: fake
+
+    resp = client.post("/search", files={"photo": ("empty.webp", webp_bytes, "image/webp")})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"slug": None}
+
+
+def test_ui_search_returns_detailed_contract(client, override_service, webp_bytes):
+    resp = client.post(
+        "/search/details",
+        files={"photo": ("w.webp", webp_bytes, "image/webp")},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["results"][0]["link"] == LINK
+    assert set(body) == {"results", "found", "margin", "ocr_matches"}
+
+
 @pytest.mark.parametrize("top_k", ["0", "101"])
 def test_search_rejects_invalid_top_k(client, override_service, webp_bytes, top_k):
     resp = client.post(
-        "/search",
+        "/search/details",
         files={"photo": ("w.webp", webp_bytes, "image/webp")},
         data={"top_k": top_k},
     )
@@ -125,7 +159,7 @@ def test_search_includes_wine_card_with_description(client, webp_bytes):
     app.dependency_overrides[get_retrieval_service] = lambda: fake
 
     resp = client.post(
-        "/search",
+        "/search/details",
         files={"photo": ("w.webp", webp_bytes, "image/webp")},
     )
 
@@ -133,13 +167,14 @@ def test_search_includes_wine_card_with_description(client, webp_bytes):
     card = resp.json()["results"][0]["card"]
     assert card["name"] == "Алиготе Баррель, 2024"
     assert card["description"]
+    assert card["roskachestvo_rating"] == "Высокое качество"
+    assert card["serving_recommendation"] == "Рыба и молодые сыры."
 
 
 def test_search_returns_cards_for_unknown_wine_alternatives(client, webp_bytes):
     fake = FakeRetrievalService(
         response=SearchResponse(
             found=False,
-            confidence=0.2,
             results=[
                 SearchResult(
                     id=1,
@@ -154,7 +189,7 @@ def test_search_returns_cards_for_unknown_wine_alternatives(client, webp_bytes):
     app.dependency_overrides[get_retrieval_service] = lambda: fake
 
     resp = client.post(
-        "/search",
+        "/search/details",
         files={"photo": ("unknown.webp", webp_bytes, "image/webp")},
     )
 
@@ -162,6 +197,24 @@ def test_search_returns_cards_for_unknown_wine_alternatives(client, webp_bytes):
     body = resp.json()
     assert body["found"] is False
     assert body["results"][0]["card"]["description"]
+
+
+def test_pairing_endpoint_returns_deterministic_recommendation(client):
+    resp = client.get("/pairing/aligote-barrel-2024")
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "slug": "aligote-barrel-2024",
+        "recommendation": "Рыба и молодые сыры.",
+        "rationale": "Рекомендация взята из карточки каталога.",
+    }
+
+
+def test_pairing_endpoint_handles_unknown_slug(client):
+    resp = client.get("/pairing/unknown-wine")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Карточка вина не найдена"}
 
 
 def test_search_rejects_bad_extension(client, override_service):

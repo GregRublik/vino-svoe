@@ -37,3 +37,14 @@ def test_picker_uses_only_browser_file_objects():
     assert "fileInput.click()" in javascript
     assert "selectedFile.name" in javascript
     assert "selectedFile.path" not in javascript
+
+
+def test_frontend_uses_ui_search_contract_and_pairing_control():
+    javascript = CAMERA_JS.read_text(encoding="utf-8")
+
+    assert "fetch('/search/details'" in javascript
+    assert "pairing-button" in javascript
+    assert "fetch(`/pairing/${encodeURIComponent(slug)}`)" in javascript
+    assert "const servingRecommendation" in javascript
+    assert "if (card.slug && servingRecommendation)" in javascript
+    assert "Нет данных в каталоге." not in javascript

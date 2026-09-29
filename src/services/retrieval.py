@@ -11,7 +11,6 @@ from schemas.search import SearchResponse, SearchResultId, VectorSearchRequest
 from services.bottle_detector import BottleDetectionService
 from services.embedding import EmbeddingService
 from services.ocr import OCRService
-from utils.confidence import calculate_match_confidence
 from utils.fusion import reciprocal_rank_fusion
 from utils.ocr_text import ocr_result_match_score, rank_ocr_results
 
@@ -38,7 +37,7 @@ class RetrievalService:
     ) -> SearchResponse:
         candidates = results[:top_k]
         if not candidates:
-            return SearchResponse(results=[], found=False, confidence=0.0)
+            return SearchResponse(results=[], found=False)
 
         visual_scores = {result.id: result.score for result in visual_results}
         visual_margin = None
@@ -54,32 +53,27 @@ class RetrievalService:
             if best_ocr_matches >= settings.retrieval_min_ocr_matches
             else 0
         )
-        confidence = calculate_match_confidence(
-            visual_score=best_visual_score,
-            visual_margin=best_margin,
-            lexical_matches=confirmed_ocr_matches,
-            visual_floor=settings.retrieval_confidence_visual_floor,
-            visual_ceiling=settings.retrieval_confidence_visual_ceiling,
-            margin_scale=settings.retrieval_confidence_margin_scale,
-            lexical_scale=settings.retrieval_confidence_lexical_scale,
+        is_visual_top1 = bool(visual_results and best.id == visual_results[0].id)
+        visual_match = (
+            is_visual_top1
+            and best_visual_score is not None
+            and best_visual_score >= settings.retrieval_visual_score_threshold
+            and (
+                best_margin is None
+                or best_margin >= settings.retrieval_visual_margin_threshold
+                or best_visual_score >= settings.retrieval_visual_strong_score_threshold
+            )
         )
-        if (
+        ocr_match = confirmed_ocr_matches >= settings.retrieval_min_ocr_matches and (
             best_visual_score is None
-            and confirmed_ocr_matches >= settings.retrieval_min_ocr_matches
-        ):
-            confidence = max(confidence, settings.retrieval_ocr_only_confidence)
-        if (
-            best_visual_score is not None
-            and visual_results
-            and best.id == visual_results[0].id
-            and best_visual_score >= settings.retrieval_confidence_visual_floor
-            and confirmed_ocr_matches >= settings.retrieval_min_ocr_matches
-        ):
-            confidence = max(confidence, settings.retrieval_visual_ocr_confidence)
+            or (
+                is_visual_top1
+                and best_visual_score >= settings.retrieval_ocr_visual_score_threshold
+            )
+        )
         return SearchResponse(
             results=candidates,
-            found=confidence >= settings.retrieval_min_confidence,
-            confidence=confidence,
+            found=visual_match or ocr_match,
             margin=round(visual_margin, 4) if visual_margin is not None else None,
             ocr_matches=best_ocr_matches,
         )
@@ -131,13 +125,7 @@ class RetrievalService:
             except OCRNotAvailableError:
                 ocr_text = ""
             else:
-                ocr_confidence = getattr(ocr_result, "confidence", None)
                 ocr_text = str(ocr_result)
-                if (
-                    ocr_confidence is not None
-                    and ocr_confidence < settings.ocr_min_confidence
-                ):
-                    ocr_text = ""
             if ocr_text.strip():
                 ocr_vector = await asyncio.to_thread(
                     self.embedding_service.vectorize_text, ocr_text

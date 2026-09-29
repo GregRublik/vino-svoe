@@ -83,6 +83,20 @@ class WineCatalogRepository:
             category=cls._first_value(record, "Категория", "category"),
             color=cls._first_value(record, "Цвет", "color"),
             description=cls._first_value(record, "Описание", "description"),
+            roskachestvo_rating=cls._first_value(
+                record,
+                "Рейтинг Роскачества",
+                "Роскачество",
+                "roskachestvo_rating",
+            ),
+            serving_recommendation=cls._first_value(
+                record,
+                "Рекомендации к подаче",
+                "Рекомендация к подаче",
+                "С чем подавать",
+                "Гастрономические сочетания",
+                "serving_recommendation",
+            ),
             photo_name=photo_name,
             link=cls._first_value(record, "link") or link or build_wine_link(slug),
         )
@@ -98,6 +112,8 @@ class WineCatalogRepository:
             "Категория": row.category,
             "Цвет": row.color,
             "Описание": row.description,
+            "Рейтинг Роскачества": row.roskachestvo_rating,
+            "Рекомендации к подаче": row.serving_recommendation,
             "Название фото": row.photo_name,
             "link": row.link,
         }
@@ -208,6 +224,8 @@ class WineCatalogRepository:
             category=row.category,
             color=row.color,
             description=row.description,
+            roskachestvo_rating=row.roskachestvo_rating,
+            serving_recommendation=row.serving_recommendation,
             link=row.link or build_wine_link(row.slug),
         )
 

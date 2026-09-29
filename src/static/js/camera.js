@@ -42,6 +42,13 @@ document.addEventListener('DOMContentLoaded', function() {
             ['Цвет', card.color],
         ];
 
+        if (card.slug) {
+            fields.push([
+                'Рейтинг Роскачества',
+                card.roskachestvo_rating || 'Нет данных',
+            ]);
+        }
+
         fields.forEach(([label, value]) => {
             if (value === null || value === undefined || String(value).trim() === '') {
                 return;
@@ -64,6 +71,22 @@ document.addEventListener('DOMContentLoaded', function() {
             article.appendChild(description);
         }
 
+        const servingRecommendation = typeof card.serving_recommendation === 'string'
+            ? card.serving_recommendation.trim()
+            : '';
+        if (card.slug && servingRecommendation) {
+            const serving = document.createElement('div');
+            serving.className = 'wine-card-block';
+            addTextElement(serving, 'div', 'wine-card-block-title', 'Рекомендации к подаче');
+            addTextElement(
+                serving,
+                'div',
+                'wine-card-block-text',
+                servingRecommendation
+            );
+            article.appendChild(serving);
+        }
+
         const link = card.link || result.link;
         if (link) {
             const linkElement = document.createElement('a');
@@ -73,6 +96,17 @@ document.addEventListener('DOMContentLoaded', function() {
             linkElement.rel = 'noopener noreferrer';
             linkElement.textContent = 'Открыть карточку на сайте «Своё вино»';
             article.appendChild(linkElement);
+        }
+
+        if (!compact && card.slug) {
+            const pairingButton = document.createElement('button');
+            pairingButton.type = 'button';
+            pairingButton.className = 'pairing-button';
+            pairingButton.textContent = '🍽 Подобрать блюдо';
+            pairingButton.addEventListener('click', () => {
+                loadPairing(card.slug, article, pairingButton);
+            });
+            article.appendChild(pairingButton);
         }
 
         if (!card.description) {
@@ -85,6 +119,48 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         return article;
+    }
+
+    async function loadPairing(slug, article, button) {
+        const previousResult = article.querySelector('.pairing-result');
+        if (previousResult) {
+            previousResult.remove();
+        }
+
+        button.disabled = true;
+        button.textContent = '⏳ Подбираем сочетание...';
+        try {
+            const response = await fetch(`/pairing/${encodeURIComponent(slug)}`);
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(safeErrorMessage(payload.detail));
+            }
+
+            const pairingBlock = document.createElement('div');
+            pairingBlock.className = 'wine-card-block pairing-result';
+            addTextElement(pairingBlock, 'div', 'wine-card-block-title', 'Сочетание');
+            addTextElement(
+                pairingBlock,
+                'div',
+                'wine-card-block-text',
+                payload.recommendation || 'Подходящее блюдо пока не определено.'
+            );
+            if (payload.rationale) {
+                addTextElement(pairingBlock, 'div', 'pairing-rationale', payload.rationale);
+            }
+            article.appendChild(pairingBlock);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : defaultErrorMessage;
+            addTextElement(
+                article,
+                'div',
+                'result-message result-message-error pairing-result',
+                message
+            );
+        } finally {
+            button.disabled = false;
+            button.textContent = '🍽 Подобрать блюдо';
+        }
     }
 
     function showResultMessage(title, message, isError = false) {
@@ -125,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultContent,
                 'p',
                 'result-description',
-                'Мы не можем уверенно определить вино по этому фото. Ниже — похожие позиции из каталога.'
+                'Мы не можем точно определить вино по этому фото. Ниже — похожие позиции из каталога.'
             );
 
             const alternatives = results.filter(result => result.card);
@@ -162,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
             recognizeBtn.textContent = '⏳ Распознаем...';
             recognizeBtn.disabled = true;
 
-            const response = await fetch('/search', {
+            const response = await fetch('/search/details', {
                 method: 'POST',
                 body: formData
             });

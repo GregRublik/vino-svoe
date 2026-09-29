@@ -19,7 +19,7 @@ class PreparedImage:
 
 
 class BottleDetectionService:
-    """Ленивая загрузка YOLO и выбор наиболее уверенной бутылки."""
+    """Ленивая загрузка YOLO и выбор бутылки с лучшим detection score."""
 
     def __init__(self, model=None):
         self._model = model
@@ -82,7 +82,7 @@ class BottleDetectionService:
         return PreparedImage(data=data)
 
     def prepare(self, data: bytes) -> PreparedImage:
-        """Возвращает crop самой уверенной бутылки или исходное фото."""
+        """Возвращает crop бутылки с лучшим detection score или исходное фото."""
         if not settings.yolo_enabled:
             return self._fallback(data)
 
@@ -91,7 +91,7 @@ class BottleDetectionService:
             image = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")
             results = model.predict(
                 source=image,
-                conf=settings.yolo_confidence,
+                conf=settings.yolo_detection_threshold,
                 imgsz=settings.yolo_image_size,
                 device=self._device(),
                 verbose=False,
@@ -106,13 +106,15 @@ class BottleDetectionService:
         if boxes is None:
             return self._fallback(data)
 
-        confidences = self._to_list(getattr(boxes, "conf", [])) or []
+        detection_scores = self._to_list(getattr(boxes, "conf", [])) or []
         coordinates = self._to_list(getattr(boxes, "xyxy", [])) or []
-        if not confidences or not coordinates:
+        if not detection_scores or not coordinates:
             return self._fallback(data)
 
-        count = min(len(confidences), len(coordinates))
-        best_index = max(range(count), key=lambda index: float(confidences[index]))
+        count = min(len(detection_scores), len(coordinates))
+        best_index = max(
+            range(count), key=lambda index: float(detection_scores[index])
+        )
         x1, y1, x2, y2 = (float(value) for value in coordinates[best_index])
 
         width, height = image.size

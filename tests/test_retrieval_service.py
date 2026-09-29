@@ -10,7 +10,6 @@ from exceptions import (
 )
 from schemas.search import SearchResult
 from services.bottle_detector import PreparedImage
-from services.ocr import OCRText
 from services.retrieval import RetrievalService
 
 LINK = "https://vino-svoe.ru/wines/abrau-dyurso"
@@ -123,27 +122,6 @@ async def test_ocr_collection_missing_skips_ocr_entirely(
     assert response.results[0].id == 2
 
 
-async def test_low_confidence_ocr_is_ignored(
-    qdrant_repo, embedding_service, ocr_service, webp_bytes, make_fake_file
-):
-    qdrant_repo.search = AsyncMock(
-        return_value=[
-            make_result(2, score=0.75),
-            make_result(1, score=0.70),
-        ]
-    )
-    ocr_service.text_detection_on_file = AsyncMock(
-        return_value=OCRText("ошибочный текст", confidence=0.30)
-    )
-    service = make_service(qdrant_repo, embedding_service, ocr_service)
-
-    response = await service.find_by_photo(make_fake_file(webp_bytes))
-
-    assert qdrant_repo.search.await_count == 1
-    embedding_service.vectorize_text.assert_not_called()
-    assert response.results[0].id == 2
-
-
 async def test_ocr_can_be_disabled_for_low_memory(
     qdrant_repo, embedding_service, ocr_service, webp_bytes, make_fake_file, monkeypatch
 ):
@@ -195,10 +173,9 @@ async def test_empty_results_return_empty_response(
     assert response.found is False
 
 
-async def test_low_confidence_returns_candidates_as_alternatives(
-    qdrant_repo, embedding_service, ocr_service, webp_bytes, make_fake_file, monkeypatch
+async def test_weak_visual_returns_candidates_as_alternatives(
+    qdrant_repo, embedding_service, ocr_service, webp_bytes, make_fake_file
 ):
-    monkeypatch.setattr(settings, "retrieval_min_confidence", 0.60)
     qdrant_repo.collection_exists = AsyncMock(return_value=False)
     qdrant_repo.search = AsyncMock(
         return_value=[
@@ -212,8 +189,6 @@ async def test_low_confidence_returns_candidates_as_alternatives(
 
     assert response.found is False
     assert response.results[0].id == 1
-    assert response.confidence is not None
-    assert response.confidence < settings.retrieval_min_confidence
 
 
 async def test_ocr_match_confirms_candidate(
@@ -265,7 +240,7 @@ async def test_strong_visual_top1_with_ocr_confirmation_is_accepted(
         side_effect=[[candidate, visual_competitor], [ocr_candidate]]
     )
     ocr_service.text_detection_on_file = AsyncMock(
-        return_value=OCRText("ФОРМУЛА Q САПЕРАВИ", confidence=0.70)
+        return_value="ФОРМУЛА Q САПЕРАВИ"
     )
     service = make_service(qdrant_repo, embedding_service, ocr_service)
 
@@ -274,7 +249,6 @@ async def test_strong_visual_top1_with_ocr_confirmation_is_accepted(
     assert response.results[0].id == candidate.id
     assert response.ocr_matches >= settings.retrieval_min_ocr_matches
     assert response.found is True
-    assert response.confidence >= settings.retrieval_visual_ocr_confidence
 
 
 async def test_equal_ocr_matches_keep_stronger_visual_candidate(
@@ -319,7 +293,7 @@ async def test_equal_ocr_matches_keep_stronger_visual_candidate(
         ]
     )
     ocr_service.text_detection_on_file = AsyncMock(
-        return_value=OCRText("РЕЛИКТА КАБЕРНЕ КРАСНОЕ", confidence=0.9)
+        return_value="РЕЛИКТА КАБЕРНЕ КРАСНОЕ"
     )
     service = make_service(qdrant_repo, embedding_service, ocr_service)
 
@@ -362,7 +336,7 @@ async def test_strong_visual_top1_survives_one_generic_ocr_match_lead(
         side_effect=[[visual_top1, visual_competitor], [visual_competitor, visual_top1]]
     )
     ocr_service.text_detection_on_file = AsyncMock(
-        return_value=OCRText("S ESTATE RED BLEND 2019", confidence=0.95)
+        return_value="S ESTATE RED BLEND 2019"
     )
     service = make_service(qdrant_repo, embedding_service, ocr_service)
 
@@ -414,7 +388,7 @@ async def test_year_compound_does_not_beat_strong_visual_product_match(
         }
     )
     ocr_service.text_detection_on_file = AsyncMock(
-        return_value=OCRText("1600 01 ЖЕМЧУЖНАЯ 9 A PAT 2024", confidence=0.75)
+        return_value="1600 01 ЖЕМЧУЖНАЯ 9 A PAT 2024"
     )
     qdrant_repo.search = AsyncMock(
         side_effect=[[visual_top1, visual_competitor], [visual_competitor, visual_top1]]
@@ -446,7 +420,6 @@ def test_ocr_only_exact_match_is_accepted():
     )
 
     assert response.found is True
-    assert response.confidence == pytest.approx(0.75)
 
 
 async def test_file_read_exactly_once(

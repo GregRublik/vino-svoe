@@ -34,13 +34,12 @@ class Settings(BaseSettings):
     ocr_detection_model_id: str = "PP-OCRv4_mobile_det"
     ocr_recognition_model_id: str = "cyrillic_PP-OCRv5_mobile_rec"
     ocr_max_side: int = 1280
-    ocr_min_confidence: float = 0.55
     ocr_enabled: bool = True
     ocr_device: str = "auto"
     max_upload_size_bytes: int = 10 * 1024 * 1024
 
     yolo_model_path: str = "data/yolo_ann/runs/bottle_yolo26n/weights/best.pt"
-    yolo_confidence: float = 0.25
+    yolo_detection_threshold: float = 0.25
     yolo_image_size: int = 640
     yolo_crop_margin: float = 0.08
     yolo_enabled: bool = True
@@ -49,13 +48,10 @@ class Settings(BaseSettings):
     retrieval_candidate_k: int = 20
     retrieval_ocr_candidate_k: int = 2000
     retrieval_min_ocr_matches: int = 2
-    retrieval_min_confidence: float = 0.60
-    retrieval_ocr_only_confidence: float = 0.75
-    retrieval_visual_ocr_confidence: float = 0.65
-    retrieval_confidence_visual_floor: float = 0.45
-    retrieval_confidence_visual_ceiling: float = 0.85
-    retrieval_confidence_margin_scale: float = 0.05
-    retrieval_confidence_lexical_scale: float = 4.0
+    retrieval_visual_score_threshold: float = 0.70
+    retrieval_visual_strong_score_threshold: float = 0.75
+    retrieval_visual_margin_threshold: float = 0.005
+    retrieval_ocr_visual_score_threshold: float = 0.60
     rrf_k: int = 60
 
     model_config = SettingsConfigDict(
