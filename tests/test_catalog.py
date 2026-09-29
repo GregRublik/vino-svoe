@@ -72,6 +72,31 @@ def test_catalog_photo_name_handles_windows_style_path(tmp_path):
     assert record["Slug"] == "windows-path-wine"
 
 
+def test_strapi_hashed_photo_name_resolves_to_catalog_record(tmp_path):
+    path = tmp_path / "wine_catalog.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "Slug": "wine-slug",
+                    "Название фото": "shato-pino-label.webp",
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    catalog = load_catalog(path)
+    record = find_catalog_record(
+        catalog,
+        "small_shato_pino_label_abcdef1234.webp",
+        index_catalog_photos(catalog),
+    )
+
+    assert record["Slug"] == "wine-slug"
+
+
 def test_catalog_repository_builds_wine_card_from_database(tmp_path):
     repository = _repository(
         tmp_path,

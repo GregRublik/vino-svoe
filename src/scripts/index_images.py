@@ -24,6 +24,7 @@ from repositories.qdrant import QdrantRepository
 from services.embedding import EmbeddingService
 from utils.catalog import find_catalog_record, index_catalog_photos
 from utils.ids import stable_int_id
+from utils.image_files import deduplicate_files
 from utils.links import build_wine_link, extract_wine_slug
 
 BATCH_SIZE = 64
@@ -64,14 +65,19 @@ async def main(rebuild: bool = False) -> None:
     finally:
         catalog_repository.close()
     catalog_photos = index_catalog_photos(catalog)
-    files = sorted(
+    all_files = sorted(
         path
         for path in images_dir.iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     )
-    if not files:
+    if not all_files:
         print("В каталоге изображений не найдено поддерживаемых файлов")
         return
+    files, duplicate_count = deduplicate_files(all_files)
+    print(
+        f"Всего файлов: {len(all_files)}, уникальных по содержимому: {len(files)}, "
+        f"побайтных дублей пропущено: {duplicate_count}"
+    )
 
     embedding_service = EmbeddingService()
     dim = embedding_service.siglip_dim  # загружает модель (первый запуск — скачивание)
@@ -85,7 +91,7 @@ async def main(rebuild: bool = False) -> None:
     indexed = await get_indexed_filenames(repo, collection)
     pending = [p for p in files if p.name not in indexed]
     print(
-        f"Всего файлов: {len(files)}, "
+        f"Всего уникальных файлов: {len(files)}, "
         f"уже проиндексировано: {len(indexed)}, осталось: {len(pending)}"
     )
 

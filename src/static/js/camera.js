@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const canvas = document.getElementById('canvas');
     const captureBtn = document.getElementById('captureBtn');
     const cancelBtn = document.getElementById('cancelCameraBtn');
+    const cameraBtn = document.getElementById('cameraBtn');
     const galleryBtn = document.getElementById('galleryBtn');
     const fileInput = document.getElementById('fileInput');
     const bottleTemplate = document.getElementById('bottleTemplate');
@@ -280,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
             showResultMessage(
                 'Камера недоступна',
-                'Для камеры нужен HTTPS. Выберите готовое фото из устройства.',
+                'Для камеры нужен HTTPS. Откройте защищённый адрес сайта.',
                 true
             );
             return;
@@ -477,6 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 5. ВЫБОР ФАЙЛА ИЗ ГАЛЕРЕИ
+    cameraBtn.addEventListener('click', openCamera);
     galleryBtn.addEventListener('click', chooseFile);
     fileInput.addEventListener('change', function(e) {
         handleSelectedFile(this.files[0]);

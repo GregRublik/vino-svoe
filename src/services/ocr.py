@@ -19,17 +19,34 @@ class OCRService:
         self._engine = engine
 
     @staticmethod
-    def _device() -> str:
-        if settings.ocr_device != "auto":
-            return settings.ocr_device
+    def _normalize_device(requested: str) -> str:
+        requested = requested.strip().lower()
+        if requested == "cuda" or requested == "gpu":
+            return "gpu:0"
+        if requested.startswith("cuda:"):
+            return f"gpu:{requested.split(':', 1)[1]}"
+        return requested
+
+    @staticmethod
+    def _cuda_available() -> bool:
         try:
             import paddle
 
-            if paddle.device.is_compiled_with_cuda():
-                return "gpu:0"
-        except (ImportError, AttributeError):
-            pass
-        return "cpu"
+            return bool(
+                paddle.device.is_compiled_with_cuda()
+                and paddle.device.cuda.device_count() > 0
+            )
+        except (ImportError, AttributeError, RuntimeError):
+            return False
+
+    @classmethod
+    def _device(cls) -> str:
+        requested = cls._normalize_device(settings.ocr_device)
+        if requested == "auto":
+            return "gpu:0" if cls._cuda_available() else "cpu"
+        if requested.startswith("gpu:") and not cls._cuda_available():
+            return "cpu"
+        return requested
 
     def _create_engine(self, recognition_model_id: str, fallback_lang: str):
         try:

@@ -124,6 +124,17 @@ body {
     border-color: #b8b0a8;
 }
 
+.btn-camera {
+    background: #fff5f2;
+    color: #8b1a1a;
+    border: 1px solid #b22222;
+}
+
+.btn-camera:hover {
+    background: #ffe9e3;
+    border-color: #8b1a1a;
+}
+
 /* Типы файлов */
 .file-types {
     font-size: 13px;
