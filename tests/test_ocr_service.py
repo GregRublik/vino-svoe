@@ -13,6 +13,16 @@ def test_default_ocr_recognition_model_is_cyrillic_pp_ocr_v5():
     assert settings.ocr_recognition_model_id == "cyrillic_PP-OCRv5_mobile_rec"
 
 
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [("cuda", "gpu:0"), ("cuda:1", "gpu:1"), ("gpu", "gpu:0"), ("cpu", "cpu")],
+)
+def test_ocr_cuda_device_is_translated_for_paddlex(
+    configured, expected, monkeypatch
+):
+    assert OCRService._normalize_device(configured) == expected
+
+
 class FakeEngine:
     def __init__(self, results):
         self.results = results

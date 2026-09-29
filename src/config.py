@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     retrieval_candidate_k: int = 20
     retrieval_ocr_candidate_k: int = 2000
     retrieval_min_ocr_matches: int = 2
+    retrieval_strong_ocr_matches: int = 3
     retrieval_visual_score_threshold: float = 0.70
     retrieval_visual_strong_score_threshold: float = 0.75
     retrieval_visual_margin_threshold: float = 0.005

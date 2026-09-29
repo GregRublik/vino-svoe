@@ -14,6 +14,15 @@ def make_result(doc_id: int, score: float = 0.9) -> SearchResult:
     )
 
 
+def make_slug_result(doc_id: int, slug: str, score: float = 0.9) -> SearchResult:
+    return SearchResult(
+        id=doc_id,
+        score=score,
+        content={"slug": slug},
+        metadata={"filename": f"wine_{doc_id}.webp"},
+    )
+
+
 def test_single_list_passthrough_order():
     results = [make_result(1), make_result(2), make_result(3)]
     fused = reciprocal_rank_fusion([results])
@@ -29,6 +38,16 @@ def test_shared_doc_ranks_above_docs_in_one_list():
     fused = reciprocal_rank_fusion([list_a, list_b])
     assert fused[0].id == 1
     # 2*(1/(60+1)) > 1/(60+2)
+    assert fused[0].score == pytest.approx(2 / 61)
+
+
+def test_same_slug_from_different_points_is_fused_once():
+    first = make_slug_result(1, "massandra-muskat")
+    second = make_slug_result(2, "massandra-muskat")
+
+    fused = reciprocal_rank_fusion([[first], [second]])
+
+    assert len(fused) == 1
     assert fused[0].score == pytest.approx(2 / 61)
 
 

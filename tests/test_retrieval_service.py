@@ -16,12 +16,18 @@ LINK = "https://vino-svoe.ru/wines/abrau-dyurso"
 
 
 def make_result(
-    doc_id: int, score: float = 0.9, link: str | None = LINK
+    doc_id: int,
+    score: float = 0.9,
+    link: str | None = LINK,
+    slug: str | None = None,
 ) -> SearchResult:
+    content = {"link": link}
+    if slug is not None:
+        content["slug"] = slug
     return SearchResult(
         id=doc_id,
         score=score,
-        content={"link": link},
+        content=content,
         metadata={"filename": f"wine_{doc_id}.webp"},
         link=link,
     )
@@ -148,6 +154,25 @@ async def test_single_source_preserves_cosine_score(
     assert len(response.results) == 1
     assert response.results[0].id == 2
     assert response.results[0].score == pytest.approx(0.75)
+
+
+async def test_visual_results_are_grouped_by_slug(
+    qdrant_repo, embedding_service, ocr_service, webp_bytes, make_fake_file
+):
+    qdrant_repo.collection_exists = AsyncMock(return_value=False)
+    qdrant_repo.search = AsyncMock(
+        return_value=[
+            make_result(1, score=0.80, slug="massandra-muskat"),
+            make_result(2, score=0.79, slug="massandra-muskat"),
+            make_result(3, score=0.70, slug="massandra-muskatel"),
+        ]
+    )
+    service = make_service(qdrant_repo, embedding_service, ocr_service)
+
+    response = await service.find_by_photo(make_fake_file(webp_bytes))
+
+    assert [result.id for result in response.results] == [1, 3]
+    assert response.margin == pytest.approx(0.10)
 
 
 async def test_siglip_collection_missing_propagates(
@@ -417,6 +442,32 @@ def test_ocr_only_exact_match_is_accepted():
         top_k=5,
         visual_results=[],
         lexical_scores={candidate.id: settings.retrieval_min_ocr_matches},
+    )
+
+    assert response.found is True
+
+
+def test_weak_ocr_match_does_not_confirm_visual_candidate():
+    candidate = make_result(42, score=0.62)
+
+    response = RetrievalService._build_response(
+        [candidate],
+        top_k=5,
+        visual_results=[candidate],
+        lexical_scores={candidate.id: settings.retrieval_min_ocr_matches},
+    )
+
+    assert response.found is False
+
+
+def test_strong_ocr_match_confirms_visual_candidate():
+    candidate = make_result(42, score=0.62)
+
+    response = RetrievalService._build_response(
+        [candidate],
+        top_k=5,
+        visual_results=[candidate],
+        lexical_scores={candidate.id: settings.retrieval_strong_ocr_matches},
     )
 
     assert response.found is True
