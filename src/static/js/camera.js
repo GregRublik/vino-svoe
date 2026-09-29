@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const canvas = document.getElementById('canvas');
     const captureBtn = document.getElementById('captureBtn');
     const cancelBtn = document.getElementById('cancelCameraBtn');
+    const galleryBtn = document.getElementById('galleryBtn');
     const fileInput = document.getElementById('fileInput');
     const bottleTemplate = document.getElementById('bottleTemplate');
     const resultSection = document.getElementById('resultSection');
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let selectedFile = null;
     let stream = null;
+    const defaultErrorMessage = 'Сервис временно недоступен. Попробуйте ещё раз.';
 
     function addTextElement(parent, tagName, className, text) {
         const element = document.createElement(tagName);
@@ -38,8 +40,14 @@ document.addEventListener('DOMContentLoaded', function() {
             ['Сорт винограда', card.grape_variety],
             ['Категория', card.category],
             ['Цвет', card.color],
-            ['Рейтинг', card.rating],
         ];
+
+        if (card.slug) {
+            fields.push([
+                'Рейтинг Роскачества',
+                card.roskachestvo_rating || 'Нет данных',
+            ]);
+        }
 
         fields.forEach(([label, value]) => {
             if (value === null || value === undefined || String(value).trim() === '') {
@@ -63,12 +71,20 @@ document.addEventListener('DOMContentLoaded', function() {
             article.appendChild(description);
         }
 
-        if (card.food_pairing) {
-            const pairing = document.createElement('div');
-            pairing.className = 'wine-card-block';
-            addTextElement(pairing, 'div', 'wine-card-block-title', 'С чем подавать');
-            addTextElement(pairing, 'div', 'wine-card-block-text', card.food_pairing);
-            article.appendChild(pairing);
+        const servingRecommendation = typeof card.serving_recommendation === 'string'
+            ? card.serving_recommendation.trim()
+            : '';
+        if (card.slug && servingRecommendation) {
+            const serving = document.createElement('div');
+            serving.className = 'wine-card-block';
+            addTextElement(serving, 'div', 'wine-card-block-title', 'Рекомендации к подаче');
+            addTextElement(
+                serving,
+                'div',
+                'wine-card-block-text',
+                servingRecommendation
+            );
+            article.appendChild(serving);
         }
 
         const link = card.link || result.link;
@@ -80,6 +96,17 @@ document.addEventListener('DOMContentLoaded', function() {
             linkElement.rel = 'noopener noreferrer';
             linkElement.textContent = 'Открыть карточку на сайте «Своё вино»';
             article.appendChild(linkElement);
+        }
+
+        if (!compact && card.slug) {
+            const pairingButton = document.createElement('button');
+            pairingButton.type = 'button';
+            pairingButton.className = 'pairing-button';
+            pairingButton.textContent = '🍽 Подобрать блюдо';
+            pairingButton.addEventListener('click', () => {
+                loadPairing(card.slug, article, pairingButton);
+            });
+            article.appendChild(pairingButton);
         }
 
         if (!card.description) {
@@ -94,6 +121,48 @@ document.addEventListener('DOMContentLoaded', function() {
         return article;
     }
 
+    async function loadPairing(slug, article, button) {
+        const previousResult = article.querySelector('.pairing-result');
+        if (previousResult) {
+            previousResult.remove();
+        }
+
+        button.disabled = true;
+        button.textContent = '⏳ Подбираем сочетание...';
+        try {
+            const response = await fetch(`/pairing/${encodeURIComponent(slug)}`);
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(safeErrorMessage(payload.detail));
+            }
+
+            const pairingBlock = document.createElement('div');
+            pairingBlock.className = 'wine-card-block pairing-result';
+            addTextElement(pairingBlock, 'div', 'wine-card-block-title', 'Сочетание');
+            addTextElement(
+                pairingBlock,
+                'div',
+                'wine-card-block-text',
+                payload.recommendation || 'Подходящее блюдо пока не определено.'
+            );
+            if (payload.rationale) {
+                addTextElement(pairingBlock, 'div', 'pairing-rationale', payload.rationale);
+            }
+            article.appendChild(pairingBlock);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : defaultErrorMessage;
+            addTextElement(
+                article,
+                'div',
+                'result-message result-message-error pairing-result',
+                message
+            );
+        } finally {
+            button.disabled = false;
+            button.textContent = '🍽 Подобрать блюдо';
+        }
+    }
+
     function showResultMessage(title, message, isError = false) {
         resultContent.replaceChildren();
         resultSection.hidden = false;
@@ -104,6 +173,18 @@ document.addEventListener('DOMContentLoaded', function() {
             isError ? 'result-message result-message-error' : 'result-message',
             message
         );
+    }
+
+    function safeErrorMessage(detail) {
+        if (typeof detail !== 'string' || detail.trim() === '') {
+            return defaultErrorMessage;
+        }
+
+        // Не показываем пользователю пути и служебные данные backend.
+        if (/[\\/]|[A-Za-z]:/.test(detail)) {
+            return defaultErrorMessage;
+        }
+        return detail;
     }
 
     function renderSearchResult(searchResult) {
@@ -120,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultContent,
                 'p',
                 'result-description',
-                'Мы не можем уверенно определить вино по этому фото. Ниже — похожие позиции из каталога.'
+                'Мы не можем точно определить вино по этому фото. Ниже — похожие позиции из каталога.'
             );
 
             const alternatives = results.filter(result => result.card);
@@ -157,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
             recognizeBtn.textContent = '⏳ Распознаем...';
             recognizeBtn.disabled = true;
 
-            const response = await fetch('/search', {
+            const response = await fetch('/search/details', {
                 method: 'POST',
                 body: formData
             });
@@ -166,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const errorBody = await response.json().catch(() => ({}));
                 showResultMessage(
                     'Не удалось распознать фото',
-                    errorBody.detail || 'Сервис временно недоступен. Попробуйте ещё раз.',
+                    safeErrorMessage(errorBody.detail),
                     true
                 );
                 recognizeBtn.textContent = 'Распознать вино';
@@ -196,6 +277,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ===== ФУНКЦИЯ ОТКРЫТИЯ КАМЕРЫ =====
     async function openCamera() {
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+            showResultMessage(
+                'Камера недоступна',
+                'Для камеры нужен HTTPS. Выберите готовое фото из устройства.',
+                true
+            );
+            return;
+        }
+
         try {
             cameraModal.classList.add('active');
             
@@ -220,6 +310,11 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Ошибка камеры:', error);
             closeCamera();
+            showResultMessage(
+                'Камера недоступна',
+                'Разрешите доступ к камере или выберите готовое фото из устройства.',
+                true
+            );
         }
     }
 
@@ -273,6 +368,53 @@ document.addEventListener('DOMContentLoaded', function() {
             uploadArea.parentNode.insertBefore(container, uploadArea.nextSibling);
         };
         reader.readAsDataURL(file);
+    }
+
+    function handleSelectedFile(file) {
+        if (!file) {
+            return;
+        }
+
+        selectedFile = file;
+        console.log('✅ Файл выбран:', selectedFile.name);
+        showPreview(selectedFile);
+        recognizeBtn.textContent = '📸 Распознать (фото готово)';
+        recognizeBtn.style.background = '#2d7d2d';
+    }
+
+    async function chooseFile() {
+        // В Chromium это не позволяет восстановить удалённую папку проекта из
+        // состояния системного диалога. Значение startIn — имя стандартной
+        // папки ОС, а не путь приложения. В остальных браузерах используется
+        // обычный input type=file.
+        if (window.isSecureContext && typeof window.showOpenFilePicker === 'function') {
+            try {
+                const [fileHandle] = await window.showOpenFilePicker({
+                    multiple: false,
+                    startIn: 'downloads',
+                    types: [
+                        {
+                            description: 'Изображения',
+                            accept: {
+                                'image/*': ['.jpg', '.jpeg', '.png', '.webp'],
+                            },
+                        },
+                    ],
+                });
+                handleSelectedFile(await fileHandle.getFile());
+                return;
+            } catch (error) {
+                // Отмена пользователем — штатный сценарий. При проблеме с
+                // поддержкой стартовой директории переходим к fallback input.
+                if (error?.name === 'AbortError') {
+                    return;
+                }
+                console.warn('Не удалось открыть современный file picker:', error);
+            }
+        }
+
+        fileInput.value = '';
+        fileInput.click();
     }
 
     // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
@@ -335,14 +477,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 5. ВЫБОР ФАЙЛА ИЗ ГАЛЕРЕИ
+    galleryBtn.addEventListener('click', chooseFile);
     fileInput.addEventListener('change', function(e) {
-        if (this.files.length > 0) {
-            selectedFile = this.files[0];
-            console.log('✅ Файл выбран:', selectedFile.name);
-            showPreview(selectedFile);
-            recognizeBtn.textContent = '📸 Распознать (фото готово)';
-            recognizeBtn.style.background = '#2d7d2d';
-        }
+        handleSelectedFile(this.files[0]);
         this.value = '';
     });
 

@@ -1,10 +1,10 @@
 from functools import lru_cache
 
 from fastapi import Depends
-from qdrant_client import AsyncQdrantClient
 from fastapi.templating import Jinja2Templates
+from qdrant_client import AsyncQdrantClient
 
-from config import settings
+from config import resolve_project_path, settings
 from repositories.catalog import WineCatalogRepository
 from repositories.qdrant import QdrantRepository
 from services.bottle_detector import BottleDetectionService
@@ -12,7 +12,7 @@ from services.embedding import EmbeddingService
 from services.ocr import OCRService
 from services.retrieval import RetrievalService
 
-templates = Jinja2Templates(directory="src/templates")
+templates = Jinja2Templates(directory=str(resolve_project_path("src/templates")))
 
 
 @lru_cache
@@ -28,7 +28,7 @@ def get_qdrant_repository(
 
 @lru_cache
 def get_wine_catalog_repository() -> WineCatalogRepository:
-    return WineCatalogRepository(settings.catalog_path)
+    return WineCatalogRepository(settings.database_url)
 
 
 @lru_cache

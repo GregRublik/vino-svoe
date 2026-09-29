@@ -1,7 +1,7 @@
 task: detect
 mode: train
 model: yolo26n.pt
-data: /home/neimia/Рабочий стол/vino-svoe-main/data/yolo_ann/ultralytics_dataset/dataset.yaml
+data: data/yolo_ann/ultralytics_dataset/dataset.yaml
 epochs: 80
 time: null
 patience: 20
@@ -12,7 +12,7 @@ save_period: -1
 cache: false
 device: '0'
 workers: 0
-project: /home/neimia/Рабочий стол/vino-svoe-main/data/yolo_ann/runs
+project: data/yolo_ann/runs
 name: bottle_yolo26n
 exist_ok: true
 pretrained: true
@@ -112,4 +112,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: tracktrack.yaml
-save_dir: /home/neimia/Рабочий стол/vino-svoe-main/data/yolo_ann/runs/bottle_yolo26n
+save_dir: data/yolo_ann/runs/bottle_yolo26n

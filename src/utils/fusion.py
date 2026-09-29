@@ -1,4 +1,4 @@
-from schemas.search import SearchResult
+from schemas.search import SearchResult, SearchResultId
 
 
 def reciprocal_rank_fusion(
@@ -12,7 +12,7 @@ def reciprocal_rank_fusion(
 
     score в результатах заменяется на fused-значение, сортировка — по убыванию.
     """
-    fused: dict[int, tuple[float, SearchResult]] = {}
+    fused: dict[SearchResultId, tuple[float, SearchResult]] = {}
 
     for ranked in ranked_lists:
         for rank, result in enumerate(ranked, start=1):

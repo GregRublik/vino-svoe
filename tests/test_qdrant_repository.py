@@ -80,7 +80,9 @@ async def test_search_uses_top_k_as_limit(repo, client):
 
 async def test_search_builds_filter_from_dict(repo, client):
     await repo.search(
-        VectorSearchRequest(vector=[0.1], top_k=5, collection="c", filters={"color": "red"})
+        VectorSearchRequest(
+            vector=[0.1], top_k=5, collection="c", filters={"color": "red"}
+        )
     )
     query_filter = client.query_log[0]["query_filter"]
     assert isinstance(query_filter, Filter)
@@ -97,18 +99,29 @@ async def test_search_maps_points_to_search_results(repo, client):
                     id=5,
                     version=0,
                     score=0.87,
-                    payload={"filename": "x.webp", "link": "https://vino-svoe.ru/wines/x"},
+                    payload={
+                        "filename": "x.webp",
+                        "link": "https://vino-svoe.ru/wines/x",
+                    },
                 )
             ]
         )
     )
-    results = await repo.search(VectorSearchRequest(vector=[0.1], top_k=5, collection="c"))
+    results = await repo.search(
+        VectorSearchRequest(vector=[0.1], top_k=5, collection="c")
+    )
     assert len(results) == 1
     result = results[0]
     assert result.id == 5
     assert result.score == 0.87
-    assert result.content == {"filename": "x.webp", "link": "https://vino-svoe.ru/wines/x"}
-    assert result.metadata == {"filename": "x.webp", "link": "https://vino-svoe.ru/wines/x"}
+    assert result.content == {
+        "filename": "x.webp",
+        "link": "https://vino-svoe.ru/wines/x",
+    }
+    assert result.metadata == {
+        "filename": "x.webp",
+        "link": "https://vino-svoe.ru/wines/x",
+    }
     assert result.link == "https://vino-svoe.ru/wines/x"
 
 
@@ -126,14 +139,20 @@ async def test_search_builds_link_from_canonical_filename(repo, client):
         )
     )
 
-    results = await repo.search(VectorSearchRequest(vector=[0.1], top_k=5, collection="c"))
+    results = await repo.search(
+        VectorSearchRequest(vector=[0.1], top_k=5, collection="c")
+    )
 
     assert results[0].link == "https://vino-svoe.ru/wines/abrau-dyurso"
 
 
 async def test_search_point_without_payload(repo, client):
-    client.responses.append(QueryResponse(points=[ScoredPoint(id=7, version=0, score=0.5)]))
-    results = await repo.search(VectorSearchRequest(vector=[0.1], top_k=5, collection="c"))
+    client.responses.append(
+        QueryResponse(points=[ScoredPoint(id=7, version=0, score=0.5)])
+    )
+    results = await repo.search(
+        VectorSearchRequest(vector=[0.1], top_k=5, collection="c")
+    )
     assert results[0].content == {}
     assert results[0].metadata == {}
     assert results[0].link is None

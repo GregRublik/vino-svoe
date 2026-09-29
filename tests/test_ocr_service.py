@@ -52,12 +52,11 @@ async def test_ocr_returns_joined_texts(webp_bytes):
     assert engine.predict_calls == 1
 
 
-async def test_ocr_exposes_mean_recognition_confidence(webp_bytes):
+async def test_ocr_joins_recognized_text_without_extra_metadata(webp_bytes):
     engine = FakeEngine(
         [
             {
                 "rec_texts": ["Вино", "Абрау-Дюрсо"],
-                "rec_scores": [0.8, 0.6],
             }
         ]
     )
@@ -65,7 +64,6 @@ async def test_ocr_exposes_mean_recognition_confidence(webp_bytes):
     result = await OCRService(engine=engine).text_detection_on_file(webp_bytes)
 
     assert result == "Вино\nАбрау-Дюрсо"
-    assert result.confidence == pytest.approx(0.7)
 
 
 async def test_ocr_empty_result_returns_empty_string(webp_bytes):

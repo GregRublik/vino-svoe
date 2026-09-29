@@ -1,10 +1,13 @@
+from uuid import UUID
+
 from pydantic import BaseModel
-from typing import Optional
+
+SearchResultId = int | str | UUID
 
 
 class BaseSearchRequest(BaseModel):
     top_k: int = 5
-    filters: Optional[dict] = None
+    filters: dict | None = None
     collection: str
 
 
@@ -12,25 +15,25 @@ class WineCard(BaseModel):
     """Данные карточки вина, которые отображает клиент."""
 
     slug: str
-    name: Optional[str] = None
-    winery: Optional[str] = None
-    region: Optional[str] = None
-    grape_variety: Optional[str] = None
-    category: Optional[str] = None
-    color: Optional[str] = None
-    description: Optional[str] = None
-    rating: str | int | float | None = None
-    food_pairing: Optional[str] = None
-    link: Optional[str] = None
+    name: str | None = None
+    winery: str | None = None
+    region: str | None = None
+    grape_variety: str | None = None
+    category: str | None = None
+    color: str | None = None
+    description: str | None = None
+    roskachestvo_rating: str | None = None
+    serving_recommendation: str | None = None
+    link: str | None = None
 
 
 class SearchResult(BaseModel):
-    id: int
+    id: SearchResultId
     score: float
     content: dict
     metadata: dict
-    link: Optional[str] = None
-    card: Optional[WineCard] = None
+    link: str | None = None
+    card: WineCard | None = None
 
 
 class VectorSearchRequest(BaseSearchRequest):
@@ -40,10 +43,19 @@ class VectorSearchRequest(BaseSearchRequest):
 class SearchResponse(BaseModel):
     results: list[SearchResult]
     found: bool = True
-    confidence: Optional[float] = None
-    margin: Optional[float] = None
+    margin: float | None = None
     ocr_matches: int = 0
 
 
-class EvalPrediction(BaseModel):
+class EvaluatorResponse(BaseModel):
+    """Минимальный контракт для автоматического оценочного скрипта."""
+
+    slug: str | None = None
+
+
+class PairingResponse(BaseModel):
+    """Детерминированная рекомендация блюда для найденного вина."""
+
     slug: str
+    recommendation: str
+    rationale: str

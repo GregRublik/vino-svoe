@@ -8,19 +8,6 @@ from config import settings
 from exceptions import OCRNotAvailableError
 
 
-class OCRText(str):
-    """Распознанный текст с оценкой уверенности движка.
-
-    Наследование от ``str`` сохраняет совместимость с текущими вызывающими
-    сторонами: объект можно передавать в текстовый encoder как обычную строку.
-    """
-
-    def __new__(cls, value: str = "", confidence: float | None = None):
-        result = super().__new__(cls, value)
-        result.confidence = confidence
-        return result
-
-
 class OCRService:
     """Распознавание текста на фото (PaddleOCR 3.x).
 
@@ -92,20 +79,17 @@ class OCRService:
             Image.Resampling.LANCZOS,
         )
         image_array = np.array(image)
-        texts, confidence = self._predict_texts(engine, image_array)
-        return OCRText("\n".join(texts), confidence=confidence)
+        texts = self._predict_texts(engine, image_array)
+        return "\n".join(texts)
 
     @staticmethod
-    def _predict_texts(
-        engine, image_array: np.ndarray
-    ) -> tuple[list[str], float | None]:
+    def _predict_texts(engine, image_array: np.ndarray) -> list[str]:
         try:
             raw = engine.predict(image_array)
         except Exception:
-            return [], None
+            return []
 
         texts: list[str] = []
-        scores: list[float] = []
         # PaddleOCR 3.x: predict() возвращает list[dict] (по одному на изображение)
         # с ключом "rec_texts" — распаковываем защитно.
         if isinstance(raw, list):
@@ -113,11 +97,4 @@ class OCRService:
                 if isinstance(item, dict):
                     rec_texts = item.get("rec_texts") or []
                     texts.extend(str(t) for t in rec_texts)
-                    for score in item.get("rec_scores") or []:
-                        try:
-                            scores.append(float(score))
-                        except (TypeError, ValueError):
-                            continue
-        texts = [text for text in texts if text]
-        confidence = sum(scores) / len(scores) if scores else None
-        return texts, confidence
+        return [text for text in texts if text]

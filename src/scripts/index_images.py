@@ -8,7 +8,6 @@ Upsert идемпотентен (id точки = sha256 от имени файл
 """
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -19,24 +18,16 @@ from tqdm import tqdm
 SRC_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SRC_DIR))
 
-from config import settings
+from config import resolve_project_path, settings
+from repositories.catalog import WineCatalogRepository
 from repositories.qdrant import QdrantRepository
 from services.embedding import EmbeddingService
-from utils.catalog import find_catalog_record, index_catalog_photos, load_catalog
+from utils.catalog import find_catalog_record, index_catalog_photos
 from utils.ids import stable_int_id
 from utils.links import build_wine_link, extract_wine_slug
 
-REPO_ROOT = SRC_DIR.parent
-IMAGES_DIR = REPO_ROOT / "data" / "images"
-LINKS_PATH = REPO_ROOT / "data" / "embedings" / "wine_links.json"
-CATALOG_PATH = REPO_ROOT / "data" / "embedings" / "wine_catalog.json"
 BATCH_SIZE = 64
 IMAGE_EXTENSIONS = {".webp", ".jpg", ".jpeg", ".png"}
-
-
-def load_links() -> dict[str, str | None]:
-    with open(LINKS_PATH, encoding="utf-8") as f:
-        return json.load(f)
 
 
 async def get_indexed_filenames(repo: QdrantRepository, collection: str) -> set[str]:
@@ -62,16 +53,24 @@ async def get_indexed_filenames(repo: QdrantRepository, collection: str) -> set[
 
 
 async def main(rebuild: bool = False) -> None:
-    links = load_links()
-    catalog = load_catalog(CATALOG_PATH)
+    images_dir = resolve_project_path(settings.images_path)
+    if not images_dir.is_dir():
+        print("Каталог изображений не найден")
+        return
+
+    catalog_repository = WineCatalogRepository(settings.database_url)
+    try:
+        catalog = catalog_repository.get_records()
+    finally:
+        catalog_repository.close()
     catalog_photos = index_catalog_photos(catalog)
     files = sorted(
         path
-        for path in IMAGES_DIR.iterdir()
+        for path in images_dir.iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     )
     if not files:
-        print(f"В '{IMAGES_DIR}' не найдено .webp файлов!")
+        print("В каталоге изображений не найдено поддерживаемых файлов")
         return
 
     embedding_service = EmbeddingService()
@@ -95,7 +94,7 @@ async def main(rebuild: bool = False) -> None:
         vector = embedding_service.vectorize_photo(path.read_bytes())
         catalog_record = find_catalog_record(catalog, path.name, catalog_photos)
         catalog_slug = catalog_record.get("Slug") if catalog_record else None
-        link = links.get(path.name)
+        link = catalog_record.get("link") if catalog_record else None
         slug = catalog_slug or extract_wine_slug(
             content={"filename": path.name},
             link=link,
