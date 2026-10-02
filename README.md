@@ -15,18 +15,6 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Проверить доступность GPU до запуска API можно так:
-
-```bash
-docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi
-```
-
-Если эта проверка завершается ошибкой `could not select device driver` или
-`no known GPU vendor`, нужно настроить NVIDIA Container Toolkit на хосте.
-CPU-only и AMD-хосты не могут использовать этот GPU-образ: для них нужен
-отдельный CPU-профиль зависимостей, поскольку GPU-wheel Paddle требует
-`libcuda.so.1` при импорте.
-
 Все внешние веса (SigLIP2, multilingual MiniLM, PP-OCR и YOLO) скачиваются на
 этапе `docker compose build api`. Во время запуска для Hugging Face включён
 offline-режим, поэтому первый пользовательский запрос не скачивает модели из
@@ -183,12 +171,3 @@ uv run --extra dev ruff check src tests
 uv run --extra dev mypy src
 ```
 
-## Ограничения
-
-- GPU-образ рассчитан на NVIDIA GPU с драйвером, совместимым с CUDA 12.6; он
-  не привязан к RTX 3050, но не является универсальным образом для CPU/AMD;
-- если при импорте каталога отсутствуют рейтинг или рекомендация к подаче,
-  карточка сохраняет `null`; блок рекомендации к подаче в UI не отображается;
-- одинаковые значения `Название фото` логируются при индексации; для связи
-  изображения используется первая запись, а остальные остаются доступными как
-  catalog-only карточки.

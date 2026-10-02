@@ -69,9 +69,8 @@ services:
       - "127.0.0.1:6333:6333"   # HTTP API для локальной индексации
       - "127.0.0.1:6334:6334"   # gRPC для локальной индексации
     volumes:
-      - vs-qdrant-data:/qdrant/storage
+      - ./data/qdrant:/qdrant/storage
     restart: unless-stopped
 
 volumes:
   vs-postgres-data:
-  vs-qdrant-data:
